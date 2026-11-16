@@ -1,0 +1,6 @@
+{
+  "name": "Códex — Estudo de Lei Seca",
+  "description": "Plataforma local-first para leitura isolada por artigo, grifos coloridos, anotações vinculadas, repetição espaçada e exportação esquematizada de legislação.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

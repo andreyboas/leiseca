@@ -1,0 +1,221 @@
+@import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --bg-canvas: #f8fafc;
+  --bg-surface: #ffffff;
+  --bg-subtle: #f1f5f9;
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #64748b;
+  --border-hairline: #e2e8f0;
+  --accent-primary: #1e3a8a;
+  --accent-hover: #172554;
+  --brand-bg: #1e3a8a;
+}
+
+.dark {
+  --bg-canvas: #0b1120;
+  --bg-surface: #111827;
+  --bg-subtle: #1e293b;
+  --text-primary: #f1f5f9;
+  --text-secondary: #cbd5e1;
+  --text-muted: #94a3b8;
+  --border-hairline: #1e293b;
+  --accent-primary: #60a5fa;
+  --accent-hover: #93c5fd;
+  --brand-bg: #2563eb;
+}
+
+.sepia {
+  --bg-canvas: #f4efe6;
+  --bg-surface: #fbf8f1;
+  --bg-subtle: #ebe3d3;
+  --text-primary: #2d2418;
+  --text-secondary: #5a4c38;
+  --text-muted: #7c6b53;
+  --border-hairline: #dfd4be;
+  --accent-primary: #92400e;
+  --accent-hover: #78350f;
+  --brand-bg: #92400e;
+}
+
+/* Ajuste 2: aumento global centralizado de +10% na escala tipográfica (16px -> 17.6px) */
+html {
+  font-size: 110%;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+html,
+body {
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background-color: var(--bg-canvas);
+  color: var(--text-primary);
+  overflow-x: hidden;
+  overflow-x: clip;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+img,
+video,
+canvas,
+picture {
+  max-width: 100%;
+  height: auto;
+}
+
+.font-legal-serif {
+  font-family: 'Lora', Georgia, serif;
+}
+
+.font-legal-sans {
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+.font-mono-tabular {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Alturas dinâmicas compatíveis com barras retráteis em navegadores móveis */
+.app-shell-height {
+  height: 100vh;
+  height: 100dvh;
+}
+
+.reader-shell-height {
+  height: calc(100vh - 3.5rem);
+  height: calc(100dvh - 3.5rem);
+}
+
+/* Safe-area para dispositivos com notch e barra gestual inferior */
+.safe-top {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.safe-pb-nav {
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom, 0px));
+}
+
+/* Quebra segura para textos jurídicos longos, ementas, URLs e identificadores */
+.legal-prose-wrap {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.touch-scroll {
+  -webkit-overflow-scrolling: touch;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Prevenir zoom automático no Safari/iOS ao focar campos em mobile e tablet */
+@media (max-width: 1024px) {
+  input:not([type='range']):not([type='checkbox']):not([type='radio']),
+  textarea,
+  select {
+    font-size: max(16px, 1rem);
+  }
+}
+
+/* Foco visível consistente para navegação por teclado */
+:where(button, a, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+}
+
+/* Evitar estados de hover presos em telas sensíveis ao toque */
+@media (hover: none) {
+  .hover-fine-only:hover {
+    background-color: inherit;
+    color: inherit;
+  }
+}
+
+/* Barras de rolagem discretas */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(100, 116, 139, 0.25);
+  border-radius: 9999px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(100, 116, 139, 0.45);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Impressão limpa de artigos e grifos */
+@media print {
+  @page {
+    margin: 16mm 14mm;
+  }
+
+  html,
+  body,
+  #root,
+  .app-shell-height,
+  .reader-shell-height {
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    background: #ffffff !important;
+    color: #0f172a !important;
+  }
+
+  .print-hidden,
+  header,
+  nav {
+    display: none !important;
+  }
+
+  .print-area {
+    display: block !important;
+    overflow: visible !important;
+    height: auto !important;
+    max-width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  mark {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}
