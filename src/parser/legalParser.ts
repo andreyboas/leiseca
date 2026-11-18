@@ -10,6 +10,12 @@ import {
   type OpcoesReuniaoHifen,
   reunirPalavrasHifenizadas,
 } from './hyphenReunifier';
+import {
+  extrairEntradasSumario,
+  localizarEntradasNoCorpo,
+  nomeExibicaoSumario,
+  siglaDoSumario,
+} from './sumario';
 
 export function gerarIdParser(prefixo: string, indice: number): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -255,6 +261,16 @@ const REGEX_CABECALHO_SUMARIO =
 const REGEX_LINHA_DOT_LEADER = /(?:\.{3,}|…{2,}|_{3,})\s*\d{1,5}\s*$/;
 
 /**
+ * Linha que termina em número de página ("Código Civil 412"). Não confunde com ano ou número
+ * de lei no fim do título ("... DO BRASIL DE 1988", "LEI Nº 8").
+ */
+function terminaComNumeroDePagina(linha: string): boolean {
+  const m = linha.trim().match(/^(.*\S)\s+(\d{1,4})$/);
+  if (!m) return false;
+  return !/\b(?:de|n[º°o]?|art\.?|lei)$/i.test(m[1]);
+}
+
+/**
  * Identifica se uma linha pertence a um sumário/índice de Vade Mecum
  * (ex.: "Constituição Federal ............. 15" ou "Código Penal — pág. 320").
  */
@@ -275,7 +291,7 @@ export function ehLinhaDeSumario(linha: string, dentroDeBlocoSumario = false): b
       return false;
     }
     // Linha curta terminando com número de página (ex: "Código Civil 412" ou "TÍTULO I - Dos Princípios 28")
-    if (/\s+\d{1,5}\s*$/.test(t) && t.length < 130) return true;
+    if (terminaComNumeroDePagina(t) && t.length < 130) return true;
     // Subtítulo curto do sumário sem ponto final
     if (
       t.length < 95 &&
@@ -328,7 +344,7 @@ export function removerLinhasSumario(textoBruto: string): string {
       }
 
       // 2. Se esta linha NÃO tem número de página nem dot-leader, verifica se ela abre o texto real da lei
-      const temNumeroPaginaNoFim = REGEX_LINHA_DOT_LEADER.test(t) || /\s+\d{1,5}\s*$/.test(t);
+      const temNumeroPaginaNoFim = REGEX_LINHA_DOT_LEADER.test(t) || terminaComNumeroDePagina(t);
       if (!temNumeroPaginaNoFim) {
         const janelaLinhas = linhas.slice(i + 1, i + 15);
         const idxArtReal = janelaLinhas.findIndex(
@@ -515,7 +531,7 @@ function ehLinhaTituloDeDiploma(linha: string): boolean {
  * - Identifica títulos oficiais conhecidos e genéricos (Leis, Decretos-Lei, Estatutos)
  * - Detecta reinício de numeração para Art. 1º após artigos avançados
  */
-export function detectarCodigosNoTexto(
+function detectarCodigosPorHeuristica(
   textoBruto: string,
   nomeArquivoFallback = 'Legislação Importada',
   opcoesHifen?: OpcoesReuniaoHifen
@@ -680,6 +696,86 @@ export function detectarCodigosNoTexto(
   }
 
   return detectados;
+}
+
+function canonizarDiploma(texto: string): string | null {
+  const t = texto.trim();
+  for (const padrao of DIPLOMAS_CONHECIDOS) {
+    if (padrao.regex.test(t)) return padrao.siglaPadrao;
+  }
+  return null;
+}
+
+/**
+ * Separa os códigos guiando-se pelo SUMÁRIO do Vade Mecum: o sumário diz quais diplomas
+ * existem e em que ordem; cada código começa no título localizado no texto (confirmado
+ * pelo Art. 1º logo abaixo) e termina onde o próximo começa.
+ * Devolve null quando não há sumário utilizável (aí vale a detecção por heurística).
+ */
+function detectarCodigosPorSumario(
+  textoBruto: string,
+  opcoesHifen?: OpcoesReuniaoHifen
+): CodigoDetectado[] | null {
+  const linhasBrutas = textoBruto.replace(/\r\n?/g, '\n').split('\n');
+  const entradas = extrairEntradasSumario(linhasBrutas);
+  if (entradas.length < 2) return null;
+
+  const textoSemSumario = removerLinhasSumario(textoBruto);
+  const textoPreparado = normalizarQuebrasDeLinha(textoSemSumario, opcoesHifen);
+  const linhas = textoPreparado.replace(/\r\n?/g, '\n').split('\n');
+
+  const marcadores = localizarEntradasNoCorpo(entradas, linhas, canonizarDiploma);
+  if (marcadores.length < 2 || marcadores.length < entradas.length * 0.5) return null;
+
+  // Um trecho sem nenhum artigo (ex.: "Preâmbulo" listado à parte) é absorvido pelo anterior
+  let mudou = true;
+  while (mudou && marcadores.length > 1) {
+    mudou = false;
+    for (let m = 0; m < marcadores.length; m++) {
+      const fim = m + 1 < marcadores.length ? marcadores[m + 1].linha : linhas.length;
+      const trecho = linhas.slice(marcadores[m].linha, fim).join('\n');
+      if (contarArtigosEstimados(trecho) === 0) {
+        if (m + 1 < marcadores.length) marcadores.splice(m + 1, 1);
+        else marcadores.splice(m, 1);
+        mudou = true;
+        break;
+      }
+    }
+  }
+  if (marcadores.length < 2) return null;
+
+  return marcadores.map((marcador, m) => {
+    const proximaLinha = m + 1 < marcadores.length ? marcadores[m + 1].linha : linhas.length;
+    const trecho = linhas.slice(marcador.linha, proximaLinha).join('\n').trim();
+    const conhecido = DIPLOMAS_CONHECIDOS.find((p) => p.regex.test(marcador.entrada.titulo.trim()));
+    const nome = conhecido ? conhecido.nomePadrao : nomeExibicaoSumario(marcador.entrada.titulo);
+    const sigla = conhecido
+      ? conhecido.siglaPadrao
+      : siglaDoSumario(marcador.entrada) || gerarSiglaAutomatica(nome);
+    return {
+      idTemp: gerarIdParser('det', m),
+      nome,
+      sigla,
+      texto: trecho,
+      artigosEstimados: contarArtigosEstimados(trecho),
+      linhaInicio: marcador.linha,
+      linhaFim: Math.max(marcador.linha, proximaLinha - 1),
+    };
+  });
+}
+
+/**
+ * Detecta automaticamente os códigos e leis de um Vade Mecum. Usa o sumário quando existe
+ * (mais preciso) e, se não houver sumário utilizável, cai na detecção por heurística.
+ */
+export function detectarCodigosNoTexto(
+  textoBruto: string,
+  nomeArquivoFallback = 'Legislação Importada',
+  opcoesHifen?: OpcoesReuniaoHifen
+): CodigoDetectado[] {
+  const porSumario = detectarCodigosPorSumario(textoBruto, opcoesHifen);
+  if (porSumario) return porSumario;
+  return detectarCodigosPorHeuristica(textoBruto, nomeArquivoFallback, opcoesHifen);
 }
 
 export function recalcularSegmentoPorLinhas(
