@@ -276,8 +276,11 @@ self.onmessage = async (event: MessageEvent<WorkerRequest>) => {
           : textoPreHifen;
 
       const linhasTotais = textoBaseLimpo.replace(/\r\n?/g, '\n').split('\n');
+      // No Vade Mecum a detecção precisa enxergar o SUMÁRIO para se guiar por ele
+      // (ela mesma remove o sumário antes de numerar as linhas)
+      const textoParaDeteccao = tipoSugerido === 'vade_mecum' ? textoBruto : textoBaseLimpo;
       const detectadosBase = detectarSegmentosPorTipo(
-        textoBaseLimpo,
+        textoParaDeteccao,
         req.nomeArquivo,
         tipoSugerido,
         { preferenciasUsuario: req.preferenciasHifen }
