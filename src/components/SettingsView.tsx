@@ -60,7 +60,7 @@ export const SettingsView: React.FC = () => {
               Legenda das cores do marca-texto
             </h2>
             <p className="text-xs text-[var(--text-muted)]">
-              Defina o significado de cada cor e use as teclas numéricas (1–5) para grifar rapidamente.
+              Defina o significado de cada cor do marca-texto.
             </p>
           </div>
           <Palette className="h-5 w-5 text-[var(--text-muted)]" aria-hidden="true" />
@@ -91,9 +91,6 @@ export const SettingsView: React.FC = () => {
                 placeholder="Significado nos estudos..."
                 className="w-full min-w-0 sm:w-auto sm:flex-1 sm:min-w-[200px] rounded-lg border border-[var(--border-hairline)] bg-[var(--bg-canvas)] px-3 py-1.5 text-xs text-[var(--text-primary)]"
               />
-              <span className="text-xs font-mono-tabular text-[var(--text-muted)]">
-                Atalho: {cor.atalho}
-              </span>
             </div>
           ))}
         </div>
