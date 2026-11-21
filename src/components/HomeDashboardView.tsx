@@ -162,7 +162,7 @@ export const HomeDashboardView: React.FC<HomeDashboardViewProps> = ({ onAbrirUpl
                 02. Grife por categoria
               </p>
               <p className="text-xs text-[var(--text-secondary)]">
-                Selecione qualquer trecho e pressione 1 a 5 (ou toque na cor) para marcar prazos, regras e pegadinhas.
+                Selecione qualquer trecho e escolha uma cor para marcar prazos, regras e pegadinhas.
               </p>
             </div>
             <div className="space-y-1">
