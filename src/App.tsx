@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
 import { BrandLogo } from '@/src/components/BrandLogo';
+import { caminhoDaPagina, paginaDoCaminho } from '@/src/navigation';
 import { ExportView } from '@/src/components/ExportView';
 import { FlashcardsView } from '@/src/components/FlashcardsView';
 import { GlobalSearchModal } from '@/src/components/GlobalSearchModal';
@@ -81,6 +82,33 @@ export default function App() {
   useEffect(() => {
     inicializar();
   }, [inicializar]);
+
+  // Endereço do navegador acompanha a seção: cada seção tem seu link e o botão voltar funciona
+  const primeiroEnderecoRef = useRef(true);
+  const conteudoRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const alvo = caminhoDaPagina(pagina);
+    if (window.location.pathname !== alvo) {
+      if (primeiroEnderecoRef.current) {
+        // Endereço desconhecido na abertura: corrige sem criar uma entrada extra no histórico
+        window.history.replaceState({ pagina }, '', alvo);
+      } else {
+        window.history.pushState({ pagina }, '', alvo);
+      }
+    }
+    primeiroEnderecoRef.current = false;
+    conteudoRef.current?.scrollTo({ top: 0 });
+  }, [pagina]);
+
+  // Botão voltar/avançar do navegador troca de seção
+  useEffect(() => {
+    const aoNavegar = () => {
+      navegarPara(paginaDoCaminho(window.location.pathname) ?? 'inicio');
+    };
+    window.addEventListener('popstate', aoNavegar);
+    return () => window.removeEventListener('popstate', aoNavegar);
+  }, [navegarPara]);
 
   // Título da aba do navegador acompanha a seção atual (Início mantém o título padrão)
   useEffect(() => {
@@ -329,7 +357,7 @@ export default function App() {
         )}
 
         {/* Viewport de Conteúdo */}
-        <div className="touch-scroll flex-1 overflow-y-auto overflow-x-hidden">
+        <div ref={conteudoRef} className="touch-scroll flex-1 overflow-y-auto overflow-x-hidden">
           {pagina === 'inicio' && (
             <HomeDashboardView onAbrirUpload={() => setUploadModalAberto(true)} />
           )}
