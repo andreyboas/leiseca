@@ -747,11 +747,27 @@ function detectarCodigosPorSumario(
   return marcadores.map((marcador, m) => {
     const proximaLinha = m + 1 < marcadores.length ? marcadores[m + 1].linha : linhas.length;
     const trecho = linhas.slice(marcador.linha, proximaLinha).join('\n').trim();
-    const conhecido = DIPLOMAS_CONHECIDOS.find((p) => p.regex.test(marcador.entrada.titulo.trim()));
-    const nome = conhecido ? conhecido.nomePadrao : nomeExibicaoSumario(marcador.entrada.titulo);
-    const sigla = conhecido
-      ? conhecido.siglaPadrao
-      : siglaDoSumario(marcador.entrada) || gerarSiglaAutomatica(nome);
+    let nome: string;
+    let sigla: string;
+    if (marcador.entrada) {
+      const titulo = marcador.entrada.titulo;
+      const conhecido = DIPLOMAS_CONHECIDOS.find((p) => p.regex.test(titulo.trim()));
+      nome = conhecido ? conhecido.nomePadrao : nomeExibicaoSumario(titulo);
+      sigla = conhecido
+        ? conhecido.siglaPadrao
+        : siglaDoSumario(marcador.entrada) || gerarSiglaAutomatica(nome);
+    } else {
+      // Achado só pela posição: usa o cabeçalho que está no próprio texto
+      const primeiraLinha = (trecho.split('\n').find((l) => l.trim()) || 'Legislação Importada').trim();
+      const conhecido = DIPLOMAS_CONHECIDOS.find((p) => p.regex.test(primeiraLinha));
+      if (conhecido) {
+        nome = conhecido.nomePadrao;
+        sigla = conhecido.siglaPadrao;
+      } else {
+        nome = nomeExibicaoSumario(primeiraLinha);
+        sigla = gerarSiglaAutomatica(nome);
+      }
+    }
     return {
       idTemp: gerarIdParser('det', m),
       nome,
