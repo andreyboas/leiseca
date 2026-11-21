@@ -9,7 +9,6 @@ import {
   MessageSquareText,
   Search,
   Settings,
-  Upload,
   X,
 } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
@@ -33,6 +32,8 @@ interface NavItem {
   rotulo: string;
   icone: React.ComponentType<{ className?: string }>;
 }
+
+const TITULO_PADRAO = 'Lei Seca — Estudo de Legislação';
 
 const ITENS_NAVEGACAO: NavItem[] = [
   { id: 'inicio', rotulo: 'Início', icone: Home },
@@ -80,6 +81,13 @@ export default function App() {
   useEffect(() => {
     inicializar();
   }, [inicializar]);
+
+  // Título da aba do navegador acompanha a seção atual (Início mantém o título padrão)
+  useEffect(() => {
+    const secao = ITENS_NAVEGACAO.find((i) => i.id === pagina);
+    document.title =
+      !secao || pagina === 'inicio' ? TITULO_PADRAO : `${secao.rotulo} — Lei Seca`;
+  }, [pagina]);
 
   // Atalho global Ctrl+B / Cmd+B para recolher/expandir barra lateral
   useEffect(() => {
@@ -156,9 +164,6 @@ export default function App() {
           >
             <div className="flex h-14 items-center justify-between border-b border-[var(--border-hairline)] px-4">
               <BrandLogo size="md" showWordmark wordmarkClassName="text-base whitespace-nowrap" />
-              <span className="text-[10px] font-mono-tabular text-[var(--text-muted)]">
-                Ctrl+B
-              </span>
             </div>
 
             <nav className="flex-1 overflow-y-auto p-3 space-y-1">
@@ -193,9 +198,6 @@ export default function App() {
                   <Search className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                   <span className="truncate">Busca global</span>
                 </span>
-                <kbd className="rounded border border-[var(--border-hairline)] px-1.5 py-0.5 text-[10px] font-mono-tabular shrink-0">
-                  Ctrl+K
-                </kbd>
               </button>
             </div>
           </div>
@@ -285,7 +287,6 @@ export default function App() {
               <button
                 type="button"
                 onClick={handleToggleMenu}
-                title="Recolher ou expandir barra lateral (Ctrl+B)"
                 aria-label="Alternar barra lateral"
                 className="inline-flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-lg text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)] cursor-pointer"
               >
@@ -323,15 +324,6 @@ export default function App() {
               </button>
 
               <PWAInstallButton />
-
-              <button
-                type="button"
-                onClick={() => setUploadModalAberto(true)}
-                className="inline-flex min-h-[40px] sm:min-h-0 items-center gap-1.5 sm:gap-2 rounded-lg bg-[var(--accent-primary)] px-3 sm:px-3.5 py-1.5 text-xs font-medium text-white hover:opacity-90 cursor-pointer whitespace-nowrap shrink-0"
-              >
-                <Upload className="h-3.5 w-3.5" aria-hidden="true" />
-                <span>Importar</span>
-              </button>
             </div>
           </header>
         )}
