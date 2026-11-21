@@ -1,23 +1,28 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="Lei Seca">
-  <defs>
-    <linearGradient id="ls-bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#1e3a8a" />
-      <stop offset="100%" stop-color="#172554" />
-    </linearGradient>
-  </defs>
-  <rect x="24" y="24" width="464" height="464" rx="108" fill="url(#ls-bg)" />
-  <rect x="24" y="24" width="464" height="464" rx="108" fill="none" stroke="#ffffff" stroke-opacity="0.14" stroke-width="6" />
-  <!-- Fita discreta dourada de marcação jurídica -->
-  <path d="M358 24h42v102l-21-15-21 15V24z" fill="#d97706" />
-  <!-- Monograma LS geométrico/editorial -->
-  <text
-    x="250"
-    y="314"
-    text-anchor="middle"
-    font-family="Georgia, 'Times New Roman', serif"
-    font-weight="700"
-    font-size="226"
-    letter-spacing="-10"
-    fill="#ffffff"
-  >LS</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <title>Lei Seca (favicon)</title>
+  <rect id="fundo" width="512" height="512" rx="112" fill="#0F1B2D"/>
+  <g id="pilha" transform="translate(256 256) scale(1.12) translate(-256 -256)" stroke-linejoin="round">
+    <!-- roxo -->
+    <path d="M359 305 L423 279 L423 351 L359 377 Z" fill="#4F2E80" stroke="#4F2E80" stroke-width="4"/>
+    <path d="M359 315 L423 289 L423 341 L359 367 Z" fill="#FBF3DC"/>
+    <path d="M79 305 L359 305 L423 279 L143 279 Z" fill="#8C63C7" stroke="#8C63C7" stroke-width="4"/>
+    <rect x="79" y="305" width="280" height="72" fill="#6C41A8" stroke="#6C41A8" stroke-width="4"/>
+    <rect x="99" y="305" width="10" height="72" fill="#E9C46A"/>
+    <rect x="329" y="305" width="10" height="72" fill="#E9C46A"/>
+    <!-- vermelho -->
+    <path d="M369 233 L433 207 L433 279 L369 305 Z" fill="#9A2630" stroke="#9A2630" stroke-width="4"/>
+    <path d="M369 243 L433 217 L433 269 L369 295 Z" fill="#FBF3DC"/>
+    <path d="M97 233 L369 233 L433 207 L161 207 Z" fill="#E4616B" stroke="#E4616B" stroke-width="4"/>
+    <rect x="97" y="233" width="272" height="72" fill="#C73641" stroke="#C73641" stroke-width="4"/>
+    <rect x="117" y="233" width="10" height="72" fill="#E9C46A"/>
+    <rect x="339" y="233" width="10" height="72" fill="#E9C46A"/>
+    <!-- verde -->
+    <path d="M349 161 L413 135 L413 207 L349 233 Z" fill="#166B45" stroke="#166B45" stroke-width="4"/>
+    <path d="M349 171 L413 145 L413 197 L349 223 Z" fill="#FBF3DC"/>
+    <path d="M85 161 L349 161 L413 135 L149 135 Z" fill="#3DB27D" stroke="#3DB27D" stroke-width="4"/>
+    <rect x="85" y="161" width="264" height="72" fill="#1E8E5C" stroke="#1E8E5C" stroke-width="4"/>
+    <rect x="105" y="161" width="10" height="72" fill="#E9C46A"/>
+    <rect x="319" y="161" width="10" height="72" fill="#E9C46A"/>
+    <rect id="marca-texto" x="150" y="185" width="140" height="24" rx="9" fill="#FFD93D"/>
+  </g>
 </svg>
