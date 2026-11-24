@@ -1,0 +1,72 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Perfil privado do usuário autenticado e verificado no Lei Seca.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Identificador único do Firebase Auth.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "Endereço de e-mail verificado do usuário.",
+          "minLength": 3,
+          "maxLength": 320
+        },
+        "displayName": {
+          "type": "string",
+          "description": "Nome de exibição do usuário.",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "photoURL": {
+          "type": "string",
+          "description": "URL opcional da foto de perfil.",
+          "maxLength": 500
+        },
+        "provider": {
+          "type": "string",
+          "enum": ["google", "password"],
+          "description": "Provedor utilizado na autenticação."
+        },
+        "emailVerified": {
+          "type": "boolean",
+          "description": "Confirmação de verificação de e-mail."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp do servidor na criação do perfil."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp do servidor na última atualização."
+        }
+      },
+      "required": [
+        "uid",
+        "email",
+        "displayName",
+        "provider",
+        "emailVerified",
+        "createdAt",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": {
+        "$ref": "#/entities/UserProfile"
+      },
+      "description": "Armazena o perfil privado de cada usuário autenticado com e-mail verificado."
+    }
+  }
+}

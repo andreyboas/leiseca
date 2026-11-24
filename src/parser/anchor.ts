@@ -1,4 +1,4 @@
-import type { BlocoArtigo, Grifo } from '@/src/types/domain';
+import type { Anotacao, BlocoArtigo, Grifo } from '@/src/types/domain';
 
 export interface SegmentoRenderizado {
   inicio: number;

@@ -5,6 +5,7 @@ import {
   Home,
   Layers,
   Library,
+  LogOut,
   Menu,
   MessageSquareText,
   Search,
@@ -12,7 +13,9 @@ import {
   X,
 } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
+import { AuthGateView } from '@/src/components/AuthGateView';
 import { BrandLogo } from '@/src/components/BrandLogo';
+import { useAuth } from '@/src/contexts/AuthContext';
 import { caminhoDaPagina, paginaDoCaminho } from '@/src/navigation';
 import { ExportView } from '@/src/components/ExportView';
 import { FlashcardsView } from '@/src/components/FlashcardsView';
@@ -62,6 +65,7 @@ export default function App() {
     limparToast,
   } = useLeiSecaStore();
 
+  const { user, authReady, emailVerificado, sair } = useAuth();
   const [menuMobileAberto, setMenuMobileAberto] = useState(false);
   const [uploadModalAberto, setUploadModalAberto] = useState(false);
 
@@ -88,6 +92,7 @@ export default function App() {
   const conteudoRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    if (!authReady || !user || !emailVerificado) return;
     const alvo = caminhoDaPagina(pagina);
     if (window.location.pathname !== alvo) {
       if (primeiroEnderecoRef.current) {
@@ -99,7 +104,7 @@ export default function App() {
     }
     primeiroEnderecoRef.current = false;
     conteudoRef.current?.scrollTo({ top: 0 });
-  }, [pagina]);
+  }, [authReady, user, emailVerificado, pagina]);
 
   // Botão voltar/avançar do navegador troca de seção
   useEffect(() => {
@@ -112,10 +117,14 @@ export default function App() {
 
   // Título da aba do navegador acompanha a seção atual (Início mantém o título padrão)
   useEffect(() => {
+    if (!authReady || !user || !emailVerificado) {
+      document.title = `Entrar — Lei Seca`;
+      return;
+    }
     const secao = ITENS_NAVEGACAO.find((i) => i.id === pagina);
     document.title =
       !secao || pagina === 'inicio' ? TITULO_PADRAO : `${secao.rotulo} — Lei Seca`;
-  }, [pagina]);
+  }, [authReady, user, emailVerificado, pagina]);
 
   // Atalho global Ctrl+B / Cmd+B para recolher/expandir barra lateral
   useEffect(() => {
@@ -165,13 +174,20 @@ export default function App() {
 
   const itemAtual = ITENS_NAVEGACAO.find((i) => i.id === pagina);
 
-  if (!inicializado) {
+  if (!authReady || !inicializado) {
     return (
       <div className="app-shell-height flex items-center justify-center bg-[var(--bg-canvas)] text-sm text-[var(--text-muted)]">
-        Carregando biblioteca local...
+        Carregando biblioteca e sessão...
       </div>
     );
   }
+
+  if (!user || !emailVerificado) {
+    return <AuthGateView />;
+  }
+
+  const nomeUsuario = user.displayName || user.email?.split('@')[0] || 'Estudante';
+  const inicialUsuario = nomeUsuario.trim().charAt(0).toUpperCase() || 'E';
 
   return (
     <div className="app-shell-height flex w-full overflow-hidden bg-[var(--bg-canvas)] text-[var(--text-primary)]">
@@ -216,7 +232,7 @@ export default function App() {
               })}
             </nav>
 
-            <div className="border-t border-[var(--border-hairline)] p-3">
+            <div className="border-t border-[var(--border-hairline)] p-3 space-y-2.5">
               <button
                 type="button"
                 onClick={() => setBuscaGlobalAberta(true)}
@@ -227,6 +243,40 @@ export default function App() {
                   <span className="truncate">Busca global</span>
                 </span>
               </button>
+
+              <div className="flex items-center justify-between gap-2 rounded-lg bg-[var(--bg-canvas)] px-2.5 py-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  {user.photoURL ? (
+                    <img
+                      src={user.photoURL}
+                      alt={nomeUsuario}
+                      referrerPolicy="no-referrer"
+                      className="h-7 w-7 shrink-0 rounded-full object-cover"
+                    />
+                  ) : (
+                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--accent-primary)] text-xs font-semibold text-white">
+                      {inicialUsuario}
+                    </span>
+                  )}
+                  <div className="min-w-0">
+                    <p className="truncate text-xs font-medium text-[var(--text-primary)]">
+                      {nomeUsuario}
+                    </p>
+                    <p className="truncate text-[10px] text-[var(--text-muted)]">
+                      {user.email}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void sair()}
+                  title="Sair da conta"
+                  aria-label="Sair da conta"
+                  className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[var(--text-muted)] hover:bg-[var(--bg-subtle)] hover:text-red-600 dark:hover:text-red-400 cursor-pointer"
+                >
+                  <LogOut className="h-3.5 w-3.5" aria-hidden="true" />
+                </button>
+              </div>
             </div>
           </div>
 
@@ -290,7 +340,7 @@ export default function App() {
                 );
               })}
             </nav>
-            <div className="border-t border-[var(--border-hairline)] p-3">
+            <div className="border-t border-[var(--border-hairline)] p-3 space-y-2.5">
               <button
                 type="button"
                 onClick={() => {
@@ -302,6 +352,42 @@ export default function App() {
                 <Search className="h-4 w-4" aria-hidden="true" />
                 <span>Busca global</span>
               </button>
+
+              <div className="flex items-center justify-between gap-2 rounded-lg bg-[var(--bg-canvas)] px-3 py-2">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  {user.photoURL ? (
+                    <img
+                      src={user.photoURL}
+                      alt={nomeUsuario}
+                      referrerPolicy="no-referrer"
+                      className="h-8 w-8 shrink-0 rounded-full object-cover"
+                    />
+                  ) : (
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--accent-primary)] text-xs font-semibold text-white">
+                      {inicialUsuario}
+                    </span>
+                  )}
+                  <div className="min-w-0">
+                    <p className="truncate text-xs font-medium text-[var(--text-primary)]">
+                      {nomeUsuario}
+                    </p>
+                    <p className="truncate text-[10px] text-[var(--text-muted)]">
+                      {user.email}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMenuMobileAberto(false);
+                    void sair();
+                  }}
+                  aria-label="Sair da conta"
+                  className="inline-flex min-h-[40px] min-w-[40px] shrink-0 items-center justify-center rounded-lg text-[var(--text-muted)] hover:bg-[var(--bg-subtle)] hover:text-red-600 dark:hover:text-red-400 cursor-pointer"
+                >
+                  <LogOut className="h-4 w-4" aria-hidden="true" />
+                </button>
+              </div>
             </div>
           </aside>
         </div>

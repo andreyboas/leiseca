@@ -1,10 +1,12 @@
-import { Database, Palette, ShieldCheck, Trash2 } from 'lucide-react';
+import { CheckCircle2, Database, LogOut, Palette, ShieldCheck, Trash2, UserCheck } from 'lucide-react';
 import React, { useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
+import { useAuth } from '@/src/contexts/AuthContext';
 import { db } from '@/src/db/database';
 import { useLeiSecaStore } from '@/src/store/useLeiSecaStore';
 
 export const SettingsView: React.FC = () => {
+  const { user, perfil, sair } = useAuth();
   const {
     configuracao,
     atualizarCorConfig,
@@ -48,9 +50,64 @@ export const SettingsView: React.FC = () => {
           Configurações
         </h1>
         <p className="mt-1 text-sm text-[var(--text-muted)]">
-          Personalize o significado das cores do marca-texto, preferências de leitura e armazenamento local.
+          Gerencie sua conta, personalize as cores do marca-texto, preferências de leitura e armazenamento local.
         </p>
       </div>
+
+      {/* Conta conectada */}
+      {user && (
+        <section className="rounded-xl border border-[var(--border-hairline)] bg-[var(--bg-surface)] p-6 space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              {user.photoURL ? (
+                <img
+                  src={user.photoURL}
+                  alt={user.displayName || 'Usuário'}
+                  referrerPolicy="no-referrer"
+                  className="h-11 w-11 shrink-0 rounded-full object-cover border border-[var(--border-hairline)]"
+                />
+              ) : (
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[var(--accent-primary)] text-sm font-semibold text-white">
+                  {(user.displayName || user.email || 'E').charAt(0).toUpperCase()}
+                </div>
+              )}
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h2 className="text-base font-semibold text-[var(--text-primary)] truncate">
+                    {user.displayName || perfil?.displayName || 'Estudante'}
+                  </h2>
+                  <span className="inline-flex items-center gap-1 rounded-md bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">
+                    <CheckCircle2 className="h-3 w-3" aria-hidden="true" />
+                    E-mail verificado
+                  </span>
+                </div>
+                <p className="text-xs text-[var(--text-muted)] truncate">{user.email}</p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => void sair()}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border-hairline)] bg-[var(--bg-canvas)] px-3 py-2 text-xs font-medium text-[var(--text-primary)] hover:bg-[var(--bg-subtle)] cursor-pointer"
+            >
+              <LogOut className="h-3.5 w-3.5" aria-hidden="true" />
+              Sair da conta
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2 rounded-lg bg-[var(--bg-canvas)] px-3.5 py-2.5 text-xs text-[var(--text-secondary)]">
+            <UserCheck className="h-4 w-4 shrink-0 text-[var(--accent-primary)]" aria-hidden="true" />
+            <span>
+              Método de autenticação:{' '}
+              <strong className="font-semibold text-[var(--text-primary)]">
+                {user.providerData.some((p) => p.providerId === 'google.com')
+                  ? 'Conta Google'
+                  : 'E-mail e senha (verificado)'}
+              </strong>
+            </span>
+          </div>
+        </section>
+      )}
 
       {/* Cores do Marca-texto */}
       <section className="rounded-xl border border-[var(--border-hairline)] bg-[var(--bg-surface)] p-6 space-y-4">
