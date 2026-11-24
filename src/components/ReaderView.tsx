@@ -735,7 +735,7 @@ export const ReaderView: React.FC = () => {
                   )}
                   <span className="truncate">{pasta.nome}</span>
                 </span>
-                <span className="font-mono-tabular text-[10px] text-[var(--text-muted)] shrink-0">
+                <span className="font-mono-tabular text-[0.72rem] text-[var(--text-muted)] shrink-0">
                   {qtdDocs}
                 </span>
               </button>
@@ -777,7 +777,7 @@ export const ReaderView: React.FC = () => {
                   <FileText className="h-3.5 w-3.5 shrink-0 text-[var(--text-muted)]" />
                   <span className="truncate">{doc.nome}</span>
                 </span>
-                <span className="font-mono-tabular text-[10px] text-[var(--text-muted)] shrink-0">
+                <span className="font-mono-tabular text-[0.72rem] text-[var(--text-muted)] shrink-0">
                   {doc.totalArtigos}
                 </span>
               </button>
@@ -789,7 +789,7 @@ export const ReaderView: React.FC = () => {
                   className="space-y-1 border-l border-[var(--border-hairline)] ml-3 pl-2 py-1"
                 >
                   {gruposArvore.length === 0 ? (
-                    <p className="px-2 py-2 text-[11px] text-[var(--text-muted)]">
+                    <p className="px-2 py-2 text-xs text-[var(--text-muted)]">
                       Nenhum item encontrado com este filtro.
                     </p>
                   ) : (
@@ -805,7 +805,7 @@ export const ReaderView: React.FC = () => {
                                 [grupo.chave]: !prev[grupo.chave],
                               }))
                             }
-                            className="flex w-full items-start justify-between gap-1.5 rounded-md px-1.5 py-1 text-left text-[11px] font-semibold text-[var(--text-muted)] hover:bg-[var(--bg-subtle)] cursor-pointer"
+                            className="flex w-full items-start justify-between gap-1.5 rounded-md px-1.5 py-1 text-left text-xs font-semibold text-[var(--text-muted)] hover:bg-[var(--bg-subtle)] cursor-pointer"
                           >
                             <span className="flex items-start gap-1 min-w-0">
                               {colapsado ? (
@@ -815,7 +815,7 @@ export const ReaderView: React.FC = () => {
                               )}
                               <span className="line-clamp-2">{grupo.titulo}</span>
                             </span>
-                            <span className="font-mono-tabular text-[10px] shrink-0">
+                            <span className="font-mono-tabular text-[0.72rem] shrink-0">
                               {grupo.artigos.length}
                             </span>
                           </button>
@@ -850,7 +850,7 @@ export const ReaderView: React.FC = () => {
                                         ? ` · ${art.epigrafe}`
                                         : ''}
                                     </span>
-                                    <span className="shrink-0 text-[10px] text-[var(--text-muted)] tabular-nums">
+                                    <span className="shrink-0 text-[0.72rem] text-[var(--text-muted)] tabular-nums">
                                       {st === 'dominado'
                                         ? 'Dom'
                                         : st === 'revisar'
@@ -997,7 +997,7 @@ export const ReaderView: React.FC = () => {
           onMouseUp={processarSelecaoTexto}
           onTouchEnd={() => setTimeout(processarSelecaoTexto, 120)}
           style={{
-            fontSize: `${preferencias.tamanhoFonte}px`,
+            fontSize: `calc(${preferencias.tamanhoFonte}px * var(--app-font-scale, 1))`,
             lineHeight: preferencias.espacamentoLinha,
           }}
           className={`legal-prose-wrap space-y-3.5 selection:bg-amber-200 selection:text-slate-900 ${
@@ -1202,7 +1202,7 @@ export const ReaderView: React.FC = () => {
                     </div>
 
                     <div>
-                      <span className="block text-[11px] font-medium text-[var(--text-muted)] mb-1.5">
+                      <span className="block text-xs font-medium text-[var(--text-muted)] mb-1.5">
                         Tema
                       </span>
                       <div className="grid grid-cols-3 gap-1.5">
@@ -1224,7 +1224,7 @@ export const ReaderView: React.FC = () => {
                     </div>
 
                     <div>
-                      <span className="block text-[11px] font-medium text-[var(--text-muted)] mb-1.5">
+                      <span className="block text-xs font-medium text-[var(--text-muted)] mb-1.5">
                         Fonte
                       </span>
                       <div className="grid grid-cols-2 gap-1.5">
@@ -1254,7 +1254,7 @@ export const ReaderView: React.FC = () => {
                     </div>
 
                     <div>
-                      <div className="flex justify-between text-[11px] text-[var(--text-muted)] mb-1">
+                      <div className="flex justify-between text-xs text-[var(--text-muted)] mb-1">
                         <span>Tamanho do texto</span>
                         <span className="font-mono-tabular">{preferencias.tamanhoFonte}px</span>
                       </div>
@@ -1272,7 +1272,7 @@ export const ReaderView: React.FC = () => {
                     </div>
 
                     <div>
-                      <div className="flex justify-between text-[11px] text-[var(--text-muted)] mb-1">
+                      <div className="flex justify-between text-xs text-[var(--text-muted)] mb-1">
                         <span>Espaçamento entre linhas</span>
                         <span className="font-mono-tabular">
                           {preferencias.espacamentoLinha.toFixed(2)}
@@ -1361,7 +1361,7 @@ export const ReaderView: React.FC = () => {
                 <ArrowLeft className="h-3.5 w-3.5 sm:h-3 sm:w-3" />
                 <span className="hidden sm:inline">Anterior</span>
               </button>
-              <span className="font-mono-tabular text-[11px]">
+              <span className="font-mono-tabular text-xs">
                 {indiceAtivo + 1}/{artigos.length}
               </span>
               <button
@@ -1466,7 +1466,7 @@ export const ReaderView: React.FC = () => {
                   />
                 </div>
 
-                <div className="grid grid-cols-3 gap-1 rounded-lg bg-[var(--bg-canvas)] p-0.5 text-[11px]">
+                <div className="grid grid-cols-3 gap-1 rounded-lg bg-[var(--bg-canvas)] p-0.5 text-xs">
                   {(['todos', 'favoritos', 'revisar'] as const).map((f) => (
                     <button
                       key={f}
@@ -1808,7 +1808,7 @@ export const ReaderView: React.FC = () => {
                 <h3 className="truncate text-sm font-semibold text-[var(--text-primary)]">
                   Anotações · {formatarRotuloUnidade(artigoAtivo, { curto: true })}
                 </h3>
-                <p className="text-[11px] text-[var(--text-muted)]">
+                <p className="text-xs text-[var(--text-muted)]">
                   Status: {progressoAtual.replace('_', ' ')} · {notasDoArtigoAtivo.length} nota(s)
                 </p>
               </div>
@@ -1873,7 +1873,7 @@ export const ReaderView: React.FC = () => {
                   <p className="mt-2 text-xs font-medium text-[var(--text-primary)]">
                     Nenhuma anotação neste item
                   </p>
-                  <p className="mt-1 text-[11px] text-[var(--text-muted)]">
+                  <p className="mt-1 text-xs text-[var(--text-muted)]">
                     Selecione qualquer trecho do texto para grifar e anotar, ou clique em “Nota geral”.
                   </p>
                 </div>

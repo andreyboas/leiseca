@@ -4,6 +4,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { db } from '@/src/db/database';
 import { useLeiSecaStore } from '@/src/store/useLeiSecaStore';
+import { sanitizarUrlSegura } from '@/src/utils/security';
 
 export const SettingsView: React.FC = () => {
   const { user, perfil, sair } = useAuth();
@@ -16,6 +17,7 @@ export const SettingsView: React.FC = () => {
   } = useLeiSecaStore();
 
   const [confirmandoLimpar, setConfirmandoLimpar] = useState(false);
+  const avatarUrlSeguro = sanitizarUrlSegura(user?.photoURL);
 
   const contagemCodigos = useLiveQuery(() => db.codigos.count(), []) ?? 0;
   const contagemArtigos = useLiveQuery(() => db.artigos.count(), []) ?? 0;
@@ -59,9 +61,9 @@ export const SettingsView: React.FC = () => {
         <section className="rounded-xl border border-[var(--border-hairline)] bg-[var(--bg-surface)] p-6 space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-3 min-w-0">
-              {user.photoURL ? (
+              {avatarUrlSeguro ? (
                 <img
-                  src={user.photoURL}
+                  src={avatarUrlSeguro}
                   alt={user.displayName || 'Usuário'}
                   referrerPolicy="no-referrer"
                   className="h-11 w-11 shrink-0 rounded-full object-cover border border-[var(--border-hairline)]"
@@ -76,12 +78,12 @@ export const SettingsView: React.FC = () => {
                   <h2 className="text-base font-semibold text-[var(--text-primary)] truncate">
                     {user.displayName || perfil?.displayName || 'Estudante'}
                   </h2>
-                  <span className="inline-flex items-center gap-1 rounded-md bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">
-                    <CheckCircle2 className="h-3 w-3" aria-hidden="true" />
+                  <span className="inline-flex items-center gap-1 rounded-md bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">
+                    <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
                     E-mail verificado
                   </span>
                 </div>
-                <p className="text-xs text-[var(--text-muted)] truncate">{user.email}</p>
+                <p className="text-sm text-[var(--text-muted)] truncate">{user.email}</p>
               </div>
             </div>
 
@@ -154,14 +156,14 @@ export const SettingsView: React.FC = () => {
       </section>
 
       {/* Preferências e Meta */}
-      <section className="rounded-xl border border-[var(--border-hairline)] bg-[var(--bg-surface)] p-6 space-y-4">
+      <section className="rounded-xl border border-[var(--border-hairline)] bg-[var(--bg-surface)] p-6 space-y-5">
         <h2 className="text-base font-semibold text-[var(--text-primary)]">
           Preferências de estudo e tema
         </h2>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
-            <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1">
+            <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5">
               Tema da interface
             </label>
             <select
@@ -171,7 +173,7 @@ export const SettingsView: React.FC = () => {
                   tema: e.target.value as 'claro' | 'escuro' | 'sepia',
                 })
               }
-              className="w-full rounded-lg border border-[var(--border-hairline)] bg-[var(--bg-canvas)] px-3 py-2 text-xs text-[var(--text-primary)]"
+              className="w-full rounded-lg border border-[var(--border-hairline)] bg-[var(--bg-canvas)] px-3 py-2 text-sm text-[var(--text-primary)]"
             >
               <option value="claro">Claro (Papel)</option>
               <option value="sepia">Sépia (Leitura prolongada)</option>
@@ -180,7 +182,7 @@ export const SettingsView: React.FC = () => {
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1">
+            <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5">
               Meta diária (artigos por dia)
             </label>
             <input
@@ -189,7 +191,7 @@ export const SettingsView: React.FC = () => {
               max={200}
               value={configuracao.metaDiariaArtigos}
               onChange={(e) => atualizarMetaDiaria(Number(e.target.value) || 1)}
-              className="w-full rounded-lg border border-[var(--border-hairline)] bg-[var(--bg-canvas)] px-3 py-2 text-xs font-mono-tabular text-[var(--text-primary)]"
+              className="w-full rounded-lg border border-[var(--border-hairline)] bg-[var(--bg-canvas)] px-3 py-2 text-sm font-mono-tabular text-[var(--text-primary)]"
             />
           </div>
         </div>

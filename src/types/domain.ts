@@ -188,6 +188,7 @@ export interface PreferenciasLeitura {
   tema: TemaLeitura;
   familiaFonte: FamiliaFonte;
   tamanhoFonte: number; // px (16..26)
+  escalaFonteInterface?: number; // % global da interface (100..135)
   espacamentoLinha: number; // 1.4..2.1
   modoVisualizacao: ModoVisualizacao;
   ocultarRemissoes: boolean;

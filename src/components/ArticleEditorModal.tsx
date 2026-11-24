@@ -150,7 +150,7 @@ export const ArticleEditorModal: React.FC<ArticleEditorModalProps> = ({
                           onClick={() =>
                             setIndiceDividir(indiceDividir === idx ? null : idx)
                           }
-                          className="inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)] cursor-pointer"
+                          className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)] cursor-pointer"
                           title="Dividir artigo a partir deste bloco"
                         >
                           <Scissors className="h-3 w-3" aria-hidden="true" />

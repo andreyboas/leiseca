@@ -2,11 +2,16 @@ import { create } from 'zustand';
 import {
   CONFIGURACAO_PADRAO,
   db,
+  ESCALA_FONTE_INTERFACE_PADRAO,
   garantirConfiguracaoInicial,
   garantirPastasRaiz,
   ID_PASTAS_RAIZ,
+  normalizarEscalaFonteInterface,
+  normalizarTamanhoFonteLeitor,
   registrarAtividadeDiaria,
+  TAMANHO_FONTE_LEITOR_PADRAO,
 } from '@/src/db/database';
+import { auth, salvarPreferenciasFonteUsuario } from '@/src/firebase';
 import {
   type GrifoNaoReancorado,
   reancorarGrifosEAnotacoesReprocessamento,
@@ -113,6 +118,10 @@ interface LeiSecaState {
   limparToast: () => void;
 
   atualizarPreferencias: (parcial: Partial<PreferenciasLeitura>) => Promise<void>;
+  sincronizarPreferenciasUsuario: (preferenciasUsuario?: {
+    escalaFonteInterface?: number;
+    tamanhoFonteLeitor?: number;
+  }) => Promise<void>;
   atualizarCorConfig: (corId: string, parcial: Partial<CorConfig>) => Promise<void>;
   atualizarMetaDiaria: (meta: number) => Promise<void>;
   concluirTutorial: () => Promise<void>;
@@ -175,6 +184,38 @@ export function aplicarTemaNoDocumento(tema: PreferenciasLeitura['tema']) {
   if (tema === 'sepia') root.classList.add('sepia');
 }
 
+let listenerFonteRegistrado = false;
+
+export function aplicarTamanhoFonteNoDocumento(
+  _escalaInterface?: number | null,
+  tamanhoFonteLeitor?: number | null
+): { escalaInterface: number; tamanhoFonteLeitor: number } {
+  const leitor = normalizarTamanhoFonteLeitor(tamanhoFonteLeitor);
+  let escalaEfetiva = 100;
+
+  if (typeof document !== 'undefined' && typeof window !== 'undefined') {
+    const root = document.documentElement;
+    // Remove qualquer sobrescrita fixa para herdar 100% da fonte configurada no aparelho/navegador do usuário
+    root.style.removeProperty('font-size');
+    const medido = parseFloat(window.getComputedStyle(root).fontSize);
+    const baseDispositivo = Number.isFinite(medido) && medido > 0 ? medido : 16;
+
+    // Garante legibilidade mínima caso algum ambiente retorne base menor que 16px
+    const baseFinal = Math.max(16, baseDispositivo);
+    if (baseDispositivo < 16) {
+      root.style.fontSize = '16px';
+    }
+
+    const fatorEscala = baseFinal / 16;
+    escalaEfetiva = Math.round(fatorEscala * 100);
+    root.style.setProperty('--app-font-base', `${baseFinal}px`);
+    root.style.setProperty('--app-font-scale', String(fatorEscala));
+    root.style.setProperty('--reader-font-size', `${Math.round(leitor * fatorEscala)}px`);
+  }
+
+  return { escalaInterface: escalaEfetiva, tamanhoFonteLeitor: leitor };
+}
+
 function novoId(prefixo: string): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
     return `${prefixo}_${crypto.randomUUID()}`;
@@ -200,6 +241,22 @@ export const useLeiSecaStore = create<LeiSecaState>((set, get) => ({
   inicializar: async () => {
     const cfg = await garantirConfiguracaoInicial();
     aplicarTemaNoDocumento(cfg.preferencias.tema);
+    aplicarTamanhoFonteNoDocumento(
+      cfg.preferencias.escalaFonteInterface ?? ESCALA_FONTE_INTERFACE_PADRAO,
+      cfg.preferencias.tamanhoFonte ?? TAMANHO_FONTE_LEITOR_PADRAO
+    );
+    if (typeof window !== 'undefined' && !listenerFonteRegistrado) {
+      listenerFonteRegistrado = true;
+      const sincronizarFonteDispositivo = () => {
+        const prefsAtuais = get().configuracao.preferencias;
+        aplicarTamanhoFonteNoDocumento(
+          prefsAtuais.escalaFonteInterface ?? ESCALA_FONTE_INTERFACE_PADRAO,
+          prefsAtuais.tamanhoFonte ?? TAMANHO_FONTE_LEITOR_PADRAO
+        );
+      };
+      window.addEventListener('resize', sincronizarFonteDispositivo, { passive: true });
+      window.addEventListener('focus', sincronizarFonteDispositivo, { passive: true });
+    }
     set({
       inicializado: true,
       configuracao: cfg,
@@ -339,15 +396,80 @@ export const useLeiSecaStore = create<LeiSecaState>((set, get) => ({
 
   atualizarPreferencias: async (parcial) => {
     const atual = get().configuracao;
-    const novasPrefs = { ...atual.preferencias, ...parcial };
+    const escalaNormalizada =
+      parcial.escalaFonteInterface !== undefined
+        ? normalizarEscalaFonteInterface(parcial.escalaFonteInterface)
+        : normalizarEscalaFonteInterface(atual.preferencias.escalaFonteInterface);
+    const tamanhoNormalizado =
+      parcial.tamanhoFonte !== undefined
+        ? normalizarTamanhoFonteLeitor(parcial.tamanhoFonte)
+        : normalizarTamanhoFonteLeitor(atual.preferencias.tamanhoFonte);
+
+    const novasPrefs: PreferenciasLeitura = {
+      ...atual.preferencias,
+      ...parcial,
+      escalaFonteInterface: escalaNormalizada,
+      tamanhoFonte: tamanhoNormalizado,
+    };
+
     if (parcial.tema) {
       aplicarTemaNoDocumento(parcial.tema);
     }
+    if (
+      parcial.escalaFonteInterface !== undefined ||
+      parcial.tamanhoFonte !== undefined
+    ) {
+      aplicarTamanhoFonteNoDocumento(escalaNormalizada, tamanhoNormalizado);
+    }
+
     const novaCfg: ConfiguracaoUsuario = {
       ...atual,
       preferencias: novasPrefs,
       atualizadoEm: Date.now(),
     };
+    set({ configuracao: novaCfg });
+    await db.configuracoes.put(novaCfg);
+
+    const usuarioAtual = auth.currentUser;
+    if (
+      usuarioAtual &&
+      usuarioAtual.emailVerified &&
+      (parcial.escalaFonteInterface !== undefined || parcial.tamanhoFonte !== undefined)
+    ) {
+      void salvarPreferenciasFonteUsuario(usuarioAtual.uid, {
+        ...(parcial.escalaFonteInterface !== undefined
+          ? { escalaFonteInterface: escalaNormalizada }
+          : {}),
+        ...(parcial.tamanhoFonte !== undefined
+          ? { tamanhoFonteLeitor: tamanhoNormalizado }
+          : {}),
+      }).catch((err) => {
+        console.warn('Não foi possível sincronizar preferências de fonte no Firestore:', err);
+      });
+    }
+  },
+
+  sincronizarPreferenciasUsuario: async (preferenciasUsuario) => {
+    const atual = await garantirConfiguracaoInicial();
+    const escalaPadronizada = normalizarEscalaFonteInterface(
+      preferenciasUsuario?.escalaFonteInterface ?? atual.preferencias.escalaFonteInterface
+    );
+    const leitorPadronizado = normalizarTamanhoFonteLeitor(
+      preferenciasUsuario?.tamanhoFonteLeitor ?? atual.preferencias.tamanhoFonte
+    );
+
+    aplicarTamanhoFonteNoDocumento(escalaPadronizada, leitorPadronizado);
+
+    const novaCfg: ConfiguracaoUsuario = {
+      ...atual,
+      preferencias: {
+        ...atual.preferencias,
+        escalaFonteInterface: escalaPadronizada,
+        tamanhoFonte: leitorPadronizado,
+      },
+      atualizadoEm: Date.now(),
+    };
+
     set({ configuracao: novaCfg });
     await db.configuracoes.put(novaCfg);
   },

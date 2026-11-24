@@ -5,6 +5,11 @@ import type {
   ResultadoExtracaoArquivo,
   TipoDocumento,
 } from '@/src/types/domain';
+import {
+  MAX_UPLOAD_BYTES,
+  sanitizarNomeArquivo,
+  validarAssinaturaArquivo,
+} from '@/src/utils/security';
 import type { WorkerRequest, WorkerResponse } from '@/src/workers/parser.worker';
 import { carregarPreferenciasHifenMapa } from './hyphenReunifier';
 
@@ -12,6 +17,8 @@ export interface ProgressoUpload {
   progresso: number;
   etapa: string;
 }
+
+const WORKER_TIMEOUT_MS = 120_000;
 
 function criarWorker(): Worker {
   return new Worker(new URL('../workers/parser.worker.ts', import.meta.url), {
@@ -24,17 +31,30 @@ export async function extrairArquivoEmWorker(
   onProgresso?: (info: ProgressoUpload) => void,
   tipoPreferido?: TipoDocumento
 ): Promise<ResultadoExtracaoArquivo> {
-  const extensao = arquivo.name.split('.').pop()?.toLowerCase();
+  const nomeSeguro = sanitizarNomeArquivo(arquivo.name);
+  const extensao = nomeSeguro.split('.').pop()?.toLowerCase();
   if (!extensao || !['pdf', 'docx', 'txt'].includes(extensao)) {
     throw new Error('Formato não suportado. Envie um arquivo PDF, DOCX ou TXT.');
   }
+  if (arquivo.size <= 0) {
+    throw new Error('O arquivo selecionado está vazio.');
+  }
+  if (arquivo.size > MAX_UPLOAD_BYTES) {
+    throw new Error('O arquivo excede o tamanho máximo suportado (100 MB).');
+  }
 
   const buffer = await arquivo.arrayBuffer();
+  validarAssinaturaArquivo(buffer, extensao as 'pdf' | 'docx' | 'txt');
+
   const id = `ext_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
   const preferenciasHifen = carregarPreferenciasHifenMapa();
 
   return new Promise((resolve, reject) => {
     const worker = criarWorker();
+    const timer = window.setTimeout(() => {
+      worker.terminate();
+      reject(new Error('Tempo limite excedido ao processar o arquivo.'));
+    }, WORKER_TIMEOUT_MS);
 
     worker.onmessage = (e: MessageEvent<WorkerResponse>) => {
       const msg = e.data;
@@ -42,13 +62,14 @@ export async function extrairArquivoEmWorker(
       if (msg.tipo === 'PROGRESSO') {
         onProgresso?.({ progresso: msg.progresso, etapa: msg.etapa });
       } else if (msg.tipo === 'RESULTADO_EXTRACAO') {
+        window.clearTimeout(timer);
         worker.terminate();
         resolve({
           textoBruto: msg.textoBruto,
           textoPreHifen: msg.textoPreHifen,
           paginasLinhasLimpas: msg.paginasLinhasLimpas,
           linhasTotais: msg.linhasTotais,
-          nomeArquivo: arquivo.name,
+          nomeArquivo: nomeSeguro,
           formato: msg.formato,
           totalPaginas: msg.totalPaginas,
           avisoOcr: msg.avisoOcr,
@@ -57,12 +78,14 @@ export async function extrairArquivoEmWorker(
           reunioesHifen: msg.reunioesHifen,
         });
       } else if (msg.tipo === 'ERRO') {
+        window.clearTimeout(timer);
         worker.terminate();
         reject(new Error(msg.mensagem));
       }
     };
 
     worker.onerror = (err) => {
+      window.clearTimeout(timer);
       worker.terminate();
       reject(new Error(err.message || 'Falha no processamento em segundo plano.'));
     };
@@ -70,7 +93,7 @@ export async function extrairArquivoEmWorker(
     const req: WorkerRequest = {
       id,
       tipo: 'EXTRAIR_ARQUIVO',
-      nomeArquivo: arquivo.name,
+      nomeArquivo: nomeSeguro,
       buffer,
       tipoPreferido,
       preferenciasHifen,

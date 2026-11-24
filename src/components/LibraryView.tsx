@@ -222,7 +222,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({ onAbrirUpload }) => {
               </button>
             </div>
 
-            <span className="text-[11px] font-mono-tabular text-[var(--text-muted)] shrink-0">
+            <span className="text-xs font-mono-tabular text-[var(--text-muted)] shrink-0">
               {qtd}
             </span>
           </div>
@@ -263,7 +263,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({ onAbrirUpload }) => {
             {cod.nome}
           </h3>
           {cod.fonteArquivo && (
-            <p className="mt-1 truncate text-[11px] text-[var(--text-muted)]">
+            <p className="mt-1 truncate text-xs text-[var(--text-muted)]">
               {cod.fonteArquivo} · {formatarDataBR(cod.criadoEm)}
             </p>
           )}
@@ -286,7 +286,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({ onAbrirUpload }) => {
 
         {movendo && (
           <div className="rounded-lg bg-[var(--bg-canvas)] p-2.5 space-y-1.5">
-            <label className="block text-[11px] font-medium text-[var(--text-muted)]">
+            <label className="block text-xs font-medium text-[var(--text-muted)]">
               Mover para a pasta:
             </label>
             <select
@@ -349,14 +349,14 @@ export const LibraryView: React.FC<LibraryViewProps> = ({ onAbrirUpload }) => {
                     await excluirCodigo(cod.id);
                     setConfirmandoExclusaoId(null);
                   }}
-                  className="rounded px-2 py-1 text-[11px] font-medium bg-red-600 text-white cursor-pointer"
+                  className="rounded px-2 py-1 text-xs font-medium bg-red-600 text-white cursor-pointer"
                 >
                   Confirmar
                 </button>
                 <button
                   type="button"
                   onClick={() => setConfirmandoExclusaoId(null)}
-                  className="rounded px-2 py-1 text-[11px] text-[var(--text-muted)] hover:bg-[var(--bg-subtle)] cursor-pointer"
+                  className="rounded px-2 py-1 text-xs text-[var(--text-muted)] hover:bg-[var(--bg-subtle)] cursor-pointer"
                 >
                   Cancelar
                 </button>
@@ -422,7 +422,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({ onAbrirUpload }) => {
             <button
               type="button"
               onClick={() => setCriandoPasta((v) => !v)}
-              className="inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] font-medium text-[var(--accent-primary)] hover:bg-[var(--bg-subtle)] cursor-pointer"
+              className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium text-[var(--accent-primary)] hover:bg-[var(--bg-subtle)] cursor-pointer"
             >
               <FolderPlus className="h-3.5 w-3.5" />
               Nova pasta
@@ -442,7 +442,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({ onAbrirUpload }) => {
               <Home className="h-3.5 w-3.5" aria-hidden="true" />
               Todas as pastas
             </span>
-            <span className="font-mono-tabular text-[11px] text-[var(--text-muted)]">
+            <span className="font-mono-tabular text-xs text-[var(--text-muted)]">
               {codigos.length}
             </span>
           </button>
@@ -580,7 +580,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({ onAbrirUpload }) => {
                         />
                         <button
                           type="submit"
-                          className="rounded bg-[var(--accent-primary)] px-2 py-1 text-[11px] text-white cursor-pointer"
+                          className="rounded bg-[var(--accent-primary)] px-2 py-1 text-xs text-white cursor-pointer"
                         >
                           Salvar
                         </button>
@@ -597,7 +597,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({ onAbrirUpload }) => {
                             <p className="truncate text-sm font-semibold text-[var(--text-primary)]">
                               {pasta.nome}
                             </p>
-                            <p className="text-[11px] font-mono-tabular text-[var(--text-muted)]">
+                            <p className="text-xs font-mono-tabular text-[var(--text-muted)]">
                               {qtd} {qtd === 1 ? 'documento' : 'documentos'}
                             </p>
                           </div>
@@ -636,7 +636,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({ onAbrirUpload }) => {
                     )}
 
                     {confirmandoExcluirPasta && (
-                      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg bg-red-50 dark:bg-red-950/30 px-2.5 py-2 text-[11px]">
+                      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg bg-red-50 dark:bg-red-950/30 px-2.5 py-2 text-xs">
                         <span className="text-red-800 dark:text-red-200">
                           Excluir pasta e todo o conteúdo?
                         </span>

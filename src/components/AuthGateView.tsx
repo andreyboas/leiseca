@@ -20,6 +20,7 @@ import { BrandLogo } from '@/src/components/BrandLogo';
 import { SiteFooter } from '@/src/components/SiteFooter';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { traduzirErroAuth } from '@/src/firebase';
+import { validarForcaSenhaCadastro } from '@/src/utils/security';
 
 type ModoAuth = 'login' | 'cadastro' | 'recuperar';
 
@@ -170,8 +171,9 @@ export const AuthGateView: React.FC = () => {
       setErro('Informe um endereço de e-mail válido.');
       return;
     }
-    if (senha.length < 6) {
-      setErro('A senha precisa ter pelo menos 6 caracteres.');
+    const erroSenha = validarForcaSenhaCadastro(senha);
+    if (erroSenha) {
+      setErro(erroSenha);
       return;
     }
     if (senha !== confirmarSenha) {
@@ -454,6 +456,7 @@ export const AuthGateView: React.FC = () => {
                         id="auth-email-reset"
                         type="email"
                         required
+                        maxLength={320}
                         autoComplete="email"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
@@ -532,7 +535,7 @@ export const AuthGateView: React.FC = () => {
 
                 <div className="relative flex items-center py-0.5">
                   <div className="flex-grow border-t border-[var(--border-hairline)]" />
-                  <span className="mx-3 shrink-0 text-[11px] font-medium text-[var(--text-muted)]">
+                  <span className="mx-3 shrink-0 text-xs font-medium text-[var(--text-muted)]">
                     ou com e-mail e senha
                   </span>
                   <div className="flex-grow border-t border-[var(--border-hairline)]" />
@@ -576,6 +579,7 @@ export const AuthGateView: React.FC = () => {
                           id="login-email"
                           type="email"
                           required
+                          maxLength={320}
                           autoComplete="email"
                           value={email}
                           onChange={(e) => setEmail(e.target.value)}
@@ -596,7 +600,7 @@ export const AuthGateView: React.FC = () => {
                         <button
                           type="button"
                           onClick={() => trocarModo('recuperar')}
-                          className="text-[11px] font-medium text-[var(--accent-primary)] hover:underline cursor-pointer"
+                          className="text-xs font-medium text-[var(--accent-primary)] hover:underline cursor-pointer"
                         >
                           Esqueci minha senha
                         </button>
@@ -610,6 +614,7 @@ export const AuthGateView: React.FC = () => {
                           id="login-senha"
                           type={mostrarSenha ? 'text' : 'password'}
                           required
+                          maxLength={256}
                           autoComplete="current-password"
                           value={senha}
                           onChange={(e) => setSenha(e.target.value)}
@@ -711,7 +716,7 @@ export const AuthGateView: React.FC = () => {
                         htmlFor="cadastro-senha"
                         className="block text-xs font-medium text-[var(--text-secondary)] mb-1"
                       >
-                        Senha (mínimo 6 caracteres)
+                        Senha (mínimo 8 caracteres com letra e número)
                       </label>
                       <div className="relative">
                         <Lock
@@ -722,7 +727,8 @@ export const AuthGateView: React.FC = () => {
                           id="cadastro-senha"
                           type={mostrarSenha ? 'text' : 'password'}
                           required
-                          minLength={6}
+                          minLength={8}
+                          maxLength={256}
                           autoComplete="new-password"
                           value={senha}
                           onChange={(e) => setSenha(e.target.value)}
@@ -760,7 +766,8 @@ export const AuthGateView: React.FC = () => {
                           id="cadastro-confirmar"
                           type={mostrarSenha ? 'text' : 'password'}
                           required
-                          minLength={6}
+                          minLength={8}
+                          maxLength={256}
                           autoComplete="new-password"
                           value={confirmarSenha}
                           onChange={(e) => setConfirmarSenha(e.target.value)}
@@ -770,7 +777,7 @@ export const AuthGateView: React.FC = () => {
                       </div>
                     </div>
 
-                    <div className="flex items-start gap-2 rounded-xl bg-[var(--bg-canvas)] p-3 text-[11px] leading-relaxed text-[var(--text-muted)]">
+                    <div className="flex items-start gap-2 rounded-xl bg-[var(--bg-canvas)] p-3 text-xs leading-relaxed text-[var(--text-muted)]">
                       <ShieldCheck
                         className="mt-0.5 h-4 w-4 shrink-0 text-[var(--accent-primary)]"
                         aria-hidden="true"

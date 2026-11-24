@@ -14,6 +14,11 @@ import type {
   TemaLeitura,
   TipoDocumento,
 } from '@/src/types/domain';
+import {
+  sanitizarHtmlSeguro,
+  sanitizarObjetoJson,
+  validarCorCssSegura,
+} from '@/src/utils/security';
 
 export const CORES_PADRAO: CorConfig[] = [
   {
@@ -70,13 +75,31 @@ export function detectarTemaSistemaInicial(): TemaLeitura {
   return 'claro';
 }
 
+export const ESCALA_FONTE_INTERFACE_PADRAO = 100;
+export const TAMANHO_FONTE_LEITOR_PADRAO = 19;
+
+export function normalizarEscalaFonteInterface(valor?: number | null): number {
+  if (typeof valor !== 'number' || !Number.isFinite(valor)) {
+    return ESCALA_FONTE_INTERFACE_PADRAO;
+  }
+  return Math.max(100, Math.min(135, Math.round(valor)));
+}
+
+export function normalizarTamanhoFonteLeitor(valor?: number | null): number {
+  if (typeof valor !== 'number' || !Number.isFinite(valor)) {
+    return TAMANHO_FONTE_LEITOR_PADRAO;
+  }
+  return Math.max(16, Math.min(26, Math.round(valor)));
+}
+
 export const CONFIGURACAO_PADRAO: ConfiguracaoUsuario = {
   id: 'default',
   cores: CORES_PADRAO,
   preferencias: {
     tema: 'claro',
     familiaFonte: 'serif',
-    tamanhoFonte: 19,
+    tamanhoFonte: TAMANHO_FONTE_LEITOR_PADRAO,
+    escalaFonteInterface: ESCALA_FONTE_INTERFACE_PADRAO,
     espacamentoLinha: 1.75,
     modoVisualizacao: 'foco',
     ocultarRemissoes: false,
@@ -402,6 +425,10 @@ export async function garantirConfiguracaoInicial(): Promise<ConfiguracaoUsuario
       preferencias: {
         ...CONFIGURACAO_PADRAO.preferencias,
         ...(existente.preferencias || {}),
+        tamanhoFonte: normalizarTamanhoFonteLeitor(existente.preferencias?.tamanhoFonte),
+        escalaFonteInterface: normalizarEscalaFonteInterface(
+          existente.preferencias?.escalaFonteInterface
+        ),
       },
     };
     return mesclada;
@@ -483,18 +510,104 @@ export async function exportarBackupCompleto(): Promise<BackupCompleto> {
   };
 }
 
+function registroTemIdValido(item: unknown): item is { id: string } {
+  return (
+    typeof item === 'object' &&
+    item !== null &&
+    'id' in item &&
+    typeof (item as { id?: unknown }).id === 'string' &&
+    (item as { id: string }).id.trim().length > 0 &&
+    (item as { id: string }).id.length <= 200
+  );
+}
+
 export async function importarBackupCompleto(
-  payload: BackupCompleto,
+  payloadBruto: BackupCompleto,
   modo: 'mesclar' | 'substituir' = 'mesclar'
 ): Promise<{ codigosImportados: number; artigosImportados: number }> {
+  const payload = sanitizarObjetoJson(payloadBruto);
   const estruturaValida =
     !!payload &&
+    typeof payload === 'object' &&
     Array.isArray(payload.codigos) &&
     Array.isArray(payload.artigos) &&
     (payload.aplicacao === 'lei-seca' || typeof payload.versaoSchema === 'number');
 
   if (!estruturaValida) {
     throw new Error('Arquivo de backup inválido ou incompatível com o Lei Seca.');
+  }
+
+  const pastasSeguras = Array.isArray(payload.pastas)
+    ? payload.pastas.filter(registroTemIdValido)
+    : [];
+  const codigosSeguros = payload.codigos.filter(registroTemIdValido).map((c) => ({
+    ...c,
+    pastaId: c.pastaId || ID_PASTAS_RAIZ.vade_mecum,
+    tipoDocumento: c.tipoDocumento || 'lei_codigo',
+  }));
+  const artigosSeguros = payload.artigos.filter(registroTemIdValido);
+  const grifosSeguros = Array.isArray(payload.grifos)
+    ? payload.grifos.filter(registroTemIdValido)
+    : [];
+  const anotacoesSeguras = Array.isArray(payload.anotacoes)
+    ? payload.anotacoes.filter(registroTemIdValido).map((n) => ({
+        ...n,
+        conteudoHtml: sanitizarHtmlSeguro(n.conteudoHtml),
+        conteudoTexto: typeof n.conteudoTexto === 'string' ? n.conteudoTexto : '',
+        tags: Array.isArray(n.tags)
+          ? n.tags.filter((t): t is string => typeof t === 'string').slice(0, 30)
+          : [],
+      }))
+    : [];
+  const tagsSeguras = Array.isArray(payload.tags)
+    ? payload.tags.filter(registroTemIdValido)
+    : [];
+  const colecoesSeguras = Array.isArray(payload.colecoes)
+    ? payload.colecoes.filter(registroTemIdValido)
+    : [];
+  const progressosSeguros = Array.isArray(payload.progressos)
+    ? payload.progressos.filter(registroTemIdValido)
+    : [];
+
+  let configSegura: ConfiguracaoUsuario | null = null;
+  if (payload.configuracao && typeof payload.configuracao === 'object' && modo === 'substituir') {
+    const c = payload.configuracao;
+    const coresSeguras = Array.isArray(c.cores)
+      ? c.cores
+          .filter(registroTemIdValido)
+          .slice(0, 12)
+          .map((cor, idx) => {
+            const padrao = CORES_PADRAO[idx] || CORES_PADRAO[0];
+            return {
+              ...cor,
+              hexBg: validarCorCssSegura(cor.hexBg, padrao.hexBg),
+              hexBgDark: validarCorCssSegura(cor.hexBgDark, padrao.hexBgDark),
+              hexBorder: validarCorCssSegura(cor.hexBorder, padrao.hexBorder),
+            };
+          })
+      : CORES_PADRAO;
+
+    const meta =
+      typeof c.metaDiariaArtigos === 'number' && Number.isFinite(c.metaDiariaArtigos)
+        ? Math.max(1, Math.min(200, Math.round(c.metaDiariaArtigos)))
+        : CONFIGURACAO_PADRAO.metaDiariaArtigos;
+
+    configSegura = {
+      ...CONFIGURACAO_PADRAO,
+      ...c,
+      id: 'default',
+      cores: coresSeguras.length > 0 ? coresSeguras : CORES_PADRAO,
+      metaDiariaArtigos: meta,
+      preferencias: {
+        ...CONFIGURACAO_PADRAO.preferencias,
+        ...(c.preferencias && typeof c.preferencias === 'object' ? c.preferencias : {}),
+        tamanhoFonte: normalizarTamanhoFonteLeitor(c.preferencias?.tamanhoFonte),
+        escalaFonteInterface: normalizarEscalaFonteInterface(
+          c.preferencias?.escalaFonteInterface
+        ),
+      },
+      atualizadoEm: Date.now(),
+    };
   }
 
   await db.transaction(
@@ -514,23 +627,16 @@ export async function importarBackupCompleto(
         ]);
       }
 
-      if (payload.pastas?.length) await db.pastas.bulkPut(payload.pastas);
-      if (payload.codigos.length) {
-        const codsNormalizados = payload.codigos.map((c) => ({
-          ...c,
-          pastaId: c.pastaId || ID_PASTAS_RAIZ.vade_mecum,
-          tipoDocumento: c.tipoDocumento || 'lei_codigo',
-        }));
-        await db.codigos.bulkPut(codsNormalizados);
-      }
-      if (payload.artigos.length) await db.artigos.bulkPut(payload.artigos);
-      if (payload.grifos.length) await db.grifos.bulkPut(payload.grifos);
-      if (payload.anotacoes.length) await db.anotacoes.bulkPut(payload.anotacoes);
-      if (payload.tags.length) await db.tags.bulkPut(payload.tags);
-      if (payload.colecoes.length) await db.colecoes.bulkPut(payload.colecoes);
-      if (payload.progressos.length) await db.progressos.bulkPut(payload.progressos);
-      if (payload.configuracao && modo === 'substituir') {
-        await db.configuracoes.put(payload.configuracao);
+      if (pastasSeguras.length) await db.pastas.bulkPut(pastasSeguras);
+      if (codigosSeguros.length) await db.codigos.bulkPut(codigosSeguros);
+      if (artigosSeguros.length) await db.artigos.bulkPut(artigosSeguros);
+      if (grifosSeguros.length) await db.grifos.bulkPut(grifosSeguros);
+      if (anotacoesSeguras.length) await db.anotacoes.bulkPut(anotacoesSeguras);
+      if (tagsSeguras.length) await db.tags.bulkPut(tagsSeguras);
+      if (colecoesSeguras.length) await db.colecoes.bulkPut(colecoesSeguras);
+      if (progressosSeguros.length) await db.progressos.bulkPut(progressosSeguros);
+      if (configSegura && modo === 'substituir') {
+        await db.configuracoes.put(configSegura);
       }
     }
   );
@@ -538,7 +644,7 @@ export async function importarBackupCompleto(
   await garantirPastasRaiz();
 
   return {
-    codigosImportados: payload.codigos.length,
-    artigosImportados: payload.artigos.length,
+    codigosImportados: codigosSeguros.length,
+    artigosImportados: artigosSeguros.length,
   };
 }

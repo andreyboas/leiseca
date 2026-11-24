@@ -11,16 +11,15 @@ interface BrandLogoProps {
  * Tamanhos pequenos usam a versão simplificada (mais legível); grandes usam a completa.
  */
 const TAMANHOS = {
-  sm: { box: 'h-7 w-7 rounded-lg', completa: false },
-  md: { box: 'h-8 w-8 rounded-lg', completa: false },
-  lg: { box: 'h-11 w-11 rounded-xl', completa: true },
-  xl: { box: 'h-14 w-14 rounded-2xl', completa: true },
+  sm: { box: 'h-7 w-7', completa: false },
+  md: { box: 'h-8 w-8', completa: false },
+  lg: { box: 'h-11 w-11', completa: true },
+  xl: { box: 'h-14 w-14', completa: true },
 } as const;
 
 function LogoSimples() {
   return (
-    <svg viewBox="0 0 512 512" className="h-full w-full" aria-hidden="true" focusable="false">
-      <rect width="512" height="512" rx="112" fill="#0F1B2D" />
+    <svg viewBox="48 110 416 292" className="h-full w-full" aria-hidden="true" focusable="false">
       <g transform="translate(256 256) scale(1.12) translate(-256 -256)" strokeLinejoin="round">
         <path d="M359 305 L423 279 L423 351 L359 377 Z" fill="#4F2E80" stroke="#4F2E80" strokeWidth="4" />
         <path d="M359 315 L423 289 L423 341 L359 367 Z" fill="#FBF3DC" />
@@ -48,9 +47,7 @@ function LogoSimples() {
 
 function LogoCompleta() {
   return (
-    <svg viewBox="0 0 512 512" className="h-full w-full" aria-hidden="true" focusable="false">
-      <rect width="512" height="512" rx="112" fill="#0F1B2D" />
-      <ellipse cx="256" cy="392" rx="190" ry="12" fill="#000000" opacity="0.28" />
+    <svg viewBox="68 124 376 264" className="h-full w-full" aria-hidden="true" focusable="false">
       <g strokeLinejoin="round">
         <g>
           <path d="M359 305 L423 279 L423 351 L359 377 Z" fill="#4F2E80" stroke="#4F2E80" strokeWidth="4" />
@@ -125,7 +122,7 @@ export function BrandLogo({
     <span className={`inline-flex items-center gap-2.5 select-none ${className}`}>
       <span
         aria-hidden="true"
-        className={`relative inline-flex shrink-0 overflow-hidden shadow-sm ring-1 ring-black/10 dark:ring-white/15 ${cfg.box}`}
+        className={`relative inline-flex shrink-0 items-center justify-center ${cfg.box}`}
       >
         {cfg.completa ? <LogoCompleta /> : <LogoSimples />}
       </span>

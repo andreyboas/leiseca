@@ -1,5 +1,6 @@
 import React from 'react';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
+import { sanitizarMensagemErroUi } from '@/src/utils/security';
 
 interface ErrorBoundaryState {
   hasError: boolean;
@@ -18,7 +19,7 @@ export class ErrorBoundary extends React.Component<
   static getDerivedStateFromError(error: Error): ErrorBoundaryState {
     return {
       hasError: true,
-      message: error?.message || 'Ocorreu um erro inesperado na aplicação.',
+      message: sanitizarMensagemErroUi(error?.message),
     };
   }
 

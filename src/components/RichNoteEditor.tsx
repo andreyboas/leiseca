@@ -1,5 +1,6 @@
 import { Bold, Italic, List, ListOrdered, Plus, Trash2, X } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
+import { extrairTextoDeHtmlSeguro, sanitizarHtmlSeguro } from '@/src/utils/security';
 
 interface RichNoteEditorProps {
   conteudoInicialHtml: string;
@@ -34,8 +35,9 @@ export const RichNoteEditor: React.FC<RichNoteEditorProps> = ({
   const [statusSalvo, setStatusSalvo] = useState<'ocioso' | 'salvando' | 'salvo'>('ocioso');
 
   useEffect(() => {
-    if (editorRef.current && editorRef.current.innerHTML !== conteudoInicialHtml) {
-      editorRef.current.innerHTML = conteudoInicialHtml;
+    const htmlSeguro = sanitizarHtmlSeguro(conteudoInicialHtml);
+    if (editorRef.current && editorRef.current.innerHTML !== htmlSeguro) {
+      editorRef.current.innerHTML = htmlSeguro;
     }
   }, [conteudoInicialHtml]);
 
@@ -45,11 +47,24 @@ export const RichNoteEditor: React.FC<RichNoteEditorProps> = ({
     if (autosave) dispararAutosave();
   };
 
-  const extrairTexto = (html: string) => {
-    const tmp = document.createElement('div');
-    tmp.innerHTML = html;
-    return (tmp.textContent || tmp.innerText || '').trim();
+  const handlePasteSeguro = (e: React.ClipboardEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const htmlColado = e.clipboardData.getData('text/html');
+    const textoPlano = e.clipboardData.getData('text/plain');
+    if (htmlColado) {
+      const seguro = sanitizarHtmlSeguro(htmlColado);
+      if (seguro) {
+        document.execCommand('insertHTML', false, seguro);
+      } else if (textoPlano) {
+        document.execCommand('insertText', false, textoPlano);
+      }
+    } else if (textoPlano) {
+      document.execCommand('insertText', false, textoPlano);
+    }
+    if (autosave) dispararAutosave();
   };
+
+  const extrairTexto = (html: string) => extrairTextoDeHtmlSeguro(html);
 
   const timerRef = useRef<number | null>(null);
 
@@ -58,7 +73,7 @@ export const RichNoteEditor: React.FC<RichNoteEditorProps> = ({
     if (timerRef.current) window.clearTimeout(timerRef.current);
     setStatusSalvo('salvando');
     timerRef.current = window.setTimeout(async () => {
-      const html = editorRef.current?.innerHTML || '';
+      const html = sanitizarHtmlSeguro(editorRef.current?.innerHTML || '');
       const texto = extrairTexto(html);
       if (!texto && !jurisprudencia.trim()) {
         setStatusSalvo('ocioso');
@@ -82,7 +97,7 @@ export const RichNoteEditor: React.FC<RichNoteEditorProps> = ({
       setTags(atualizadas);
       setNovaTag('');
       if (autosave) {
-        const html = editorRef.current?.innerHTML || '';
+        const html = sanitizarHtmlSeguro(editorRef.current?.innerHTML || '');
         onSalvar({
           conteudoHtml: html,
           conteudoTexto: extrairTexto(html),
@@ -99,7 +114,7 @@ export const RichNoteEditor: React.FC<RichNoteEditorProps> = ({
     const atualizadas = tags.filter((x) => x !== t);
     setTags(atualizadas);
     if (autosave) {
-      const html = editorRef.current?.innerHTML || '';
+      const html = sanitizarHtmlSeguro(editorRef.current?.innerHTML || '');
       onSalvar({
         conteudoHtml: html,
         conteudoTexto: extrairTexto(html),
@@ -111,7 +126,7 @@ export const RichNoteEditor: React.FC<RichNoteEditorProps> = ({
 
   const handleSalvarManual = async (e: React.FormEvent) => {
     e.preventDefault();
-    const html = editorRef.current?.innerHTML || '';
+    const html = sanitizarHtmlSeguro(editorRef.current?.innerHTML || '');
     const texto = extrairTexto(html);
     if (!texto && !jurisprudencia.trim()) return;
     setStatusSalvo('salvando');
@@ -174,7 +189,7 @@ export const RichNoteEditor: React.FC<RichNoteEditorProps> = ({
           </div>
 
           {statusSalvo !== 'ocioso' && (
-            <span className="text-[11px] text-[var(--text-muted)]">
+            <span className="text-xs text-[var(--text-muted)]">
               {statusSalvo === 'salvando' ? 'Salvando...' : 'Salvo'}
             </span>
           )}
@@ -185,6 +200,7 @@ export const RichNoteEditor: React.FC<RichNoteEditorProps> = ({
           contentEditable
           suppressContentEditableWarning
           onInput={dispararAutosave}
+          onPaste={handlePasteSeguro}
           aria-label="Conteúdo da anotação"
           className="min-h-[84px] max-h-48 overflow-y-auto px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5"
         />
@@ -210,7 +226,7 @@ export const RichNoteEditor: React.FC<RichNoteEditorProps> = ({
               key={tag}
               type="button"
               onClick={() => removerTag(tag)}
-              className="inline-flex items-center gap-1 rounded border border-[var(--border-hairline)] bg-[var(--bg-subtle)] px-2 py-0.5 text-[11px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] cursor-pointer"
+              className="inline-flex items-center gap-1 rounded border border-[var(--border-hairline)] bg-[var(--bg-subtle)] px-2 py-0.5 text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] cursor-pointer"
               title="Remover tag"
             >
               <span>#{tag}</span>

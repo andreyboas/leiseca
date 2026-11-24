@@ -1,6 +1,7 @@
 import { ArrowUpRight, MessageSquareText, Search, Trash2 } from 'lucide-react';
 import React, { useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
+import { SafeHtmlContent } from '@/src/components/SafeHtmlContent';
 import { db } from '@/src/db/database';
 import { useLeiSecaStore } from '@/src/store/useLeiSecaStore';
 import { formatarDataHoraBR, formatarRotuloUnidade } from '@/src/utils/studyHelpers';
@@ -189,9 +190,9 @@ export const NotesDirectoryView: React.FC = () => {
                   </p>
                 )}
 
-                <div
+                <SafeHtmlContent
+                  html={nota.conteudoHtml || nota.conteudoTexto}
                   className="legal-prose-wrap text-sm text-[var(--text-primary)] leading-relaxed [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5"
-                  dangerouslySetInnerHTML={{ __html: nota.conteudoHtml || nota.conteudoTexto }}
                 />
 
                 {nota.jurisprudencia && (

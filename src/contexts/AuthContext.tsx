@@ -16,6 +16,10 @@ import {
   type PerfilUsuarioFirestore,
   sincronizarPerfilUsuario,
 } from '@/src/firebase';
+import {
+  aplicarTamanhoFonteNoDocumento,
+  useLeiSecaStore,
+} from '@/src/store/useLeiSecaStore';
 
 interface AuthContextValue {
   user: User | null;
@@ -47,6 +51,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const p = await sincronizarPerfilUsuario(u);
       setPerfil(p);
+      await useLeiSecaStore.getState().sincronizarPreferenciasUsuario(
+        p
+          ? {
+              escalaFonteInterface: p.escalaFonteInterface,
+              tamanhoFonteLeitor: p.tamanhoFonteLeitor,
+            }
+          : undefined
+      );
     } catch (err) {
       console.warn('Falha ao sincronizar perfil no Firestore:', err);
     }
@@ -148,6 +160,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser(null);
     setEmailVerificado(false);
     setPerfil(null);
+    aplicarTamanhoFonteNoDocumento();
   }, []);
 
   return (

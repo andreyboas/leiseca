@@ -48,6 +48,8 @@ service cloud.firestore {
           'provider',
           'emailVerified',
           'photoURL',
+          'escalaFonteInterface',
+          'tamanhoFonteLeitor',
           'createdAt',
           'updatedAt'
         ])
@@ -67,7 +69,9 @@ service cloud.firestore {
         && data.provider in ['google', 'password']
         && data.emailVerified is bool
         && data.emailVerified == true
-        && (!('photoURL' in data) || (data.photoURL is string && data.photoURL.size() <= 500))
+        && (!('photoURL' in data) || (data.photoURL is string && data.photoURL.size() >= 8 && data.photoURL.size() <= 500 && data.photoURL.matches('^https://.*')))
+        && (!('escalaFonteInterface' in data) || (data.escalaFonteInterface is number && data.escalaFonteInterface >= 100 && data.escalaFonteInterface <= 135))
+        && (!('tamanhoFonteLeitor' in data) || (data.tamanhoFonteLeitor is number && data.tamanhoFonteLeitor >= 16 && data.tamanhoFonteLeitor <= 26))
         && data.createdAt is timestamp
         && data.updatedAt is timestamp;
     }
@@ -94,6 +98,8 @@ service cloud.firestore {
           'displayName',
           'photoURL',
           'emailVerified',
+          'escalaFonteInterface',
+          'tamanhoFonteLeitor',
           'updatedAt'
         ]);
       allow delete: if isValidId(userId) && isOwner(userId) && isEmailVerified();

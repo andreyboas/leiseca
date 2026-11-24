@@ -1,4 +1,5 @@
 import React from 'react';
+import { sanitizarUrlSegura } from '@/src/utils/security';
 
 /**
  * Links do rodapé — edite aqui quando quiser alterar ou adicionar URLs.
@@ -40,7 +41,9 @@ function InstagramIcon() {
 }
 
 export const SiteFooter: React.FC = () => {
-  const instagramLink = INSTAGRAM_URL.trim();
+  const siteLink = sanitizarUrlSegura(SITE_URL);
+  const githubLink = sanitizarUrlSegura(GITHUB_URL);
+  const instagramLink = sanitizarUrlSegura(INSTAGRAM_URL);
 
   return (
     <footer className="print-hidden border-t border-[var(--border-hairline)] bg-[var(--bg-surface)]/80">
@@ -53,27 +56,33 @@ export const SiteFooter: React.FC = () => {
           <span className="hidden sm:inline text-[var(--text-muted)]" aria-hidden="true">
             ·
           </span>
-          <a
-            href={SITE_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-[var(--accent-primary)] hover:underline break-all"
-          >
-            {SITE_LABEL}
-          </a>
+          {siteLink ? (
+            <a
+              href={siteLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[var(--accent-primary)] hover:underline break-all"
+            >
+              {SITE_LABEL}
+            </a>
+          ) : (
+            <span className="text-[var(--text-muted)] break-all">{SITE_LABEL}</span>
+          )}
         </div>
 
         {/* Lado direito: GitHub e Instagram */}
         <div className="flex flex-wrap items-center gap-4 text-xs">
-          <a
-            href={GITHUB_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
-          >
-            <GitHubIcon />
-            <span>GitHub</span>
-          </a>
+          {githubLink && (
+            <a
+              href={githubLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
+            >
+              <GitHubIcon />
+              <span>GitHub</span>
+            </a>
+          )}
 
           {instagramLink ? (
             <a

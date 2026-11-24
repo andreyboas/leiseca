@@ -30,6 +30,7 @@ import { SettingsView } from '@/src/components/SettingsView';
 import { SpacedReviewView } from '@/src/components/SpacedReviewView';
 import { UploadVadeMecumModal } from '@/src/components/UploadVadeMecumModal';
 import { type PaginaAtiva, useLeiSecaStore } from '@/src/store/useLeiSecaStore';
+import { sanitizarUrlSegura } from '@/src/utils/security';
 
 interface NavItem {
   id: PaginaAtiva;
@@ -188,6 +189,7 @@ export default function App() {
 
   const nomeUsuario = user.displayName || user.email?.split('@')[0] || 'Estudante';
   const inicialUsuario = nomeUsuario.trim().charAt(0).toUpperCase() || 'E';
+  const avatarUrlSeguro = sanitizarUrlSegura(user.photoURL);
 
   return (
     <div className="app-shell-height flex w-full overflow-hidden bg-[var(--bg-canvas)] text-[var(--text-primary)]">
@@ -207,7 +209,15 @@ export default function App() {
             className="flex h-full flex-col"
           >
             <div className="flex h-14 items-center justify-between border-b border-[var(--border-hairline)] px-4">
-              <BrandLogo size="md" showWordmark wordmarkClassName="text-base whitespace-nowrap" />
+              <button
+                type="button"
+                onClick={() => navegarPara('inicio')}
+                title="Voltar para o Início"
+                aria-label="Voltar para o início"
+                className="inline-flex items-center rounded-lg py-1 hover:opacity-85 transition-opacity cursor-pointer"
+              >
+                <BrandLogo size="md" showWordmark wordmarkClassName="text-base whitespace-nowrap" />
+              </button>
             </div>
 
             <nav className="flex-1 overflow-y-auto p-3 space-y-1">
@@ -246,9 +256,9 @@ export default function App() {
 
               <div className="flex items-center justify-between gap-2 rounded-lg bg-[var(--bg-canvas)] px-2.5 py-2">
                 <div className="flex items-center gap-2 min-w-0">
-                  {user.photoURL ? (
+                  {avatarUrlSeguro ? (
                     <img
-                      src={user.photoURL}
+                      src={avatarUrlSeguro}
                       alt={nomeUsuario}
                       referrerPolicy="no-referrer"
                       className="h-7 w-7 shrink-0 rounded-full object-cover"
@@ -262,7 +272,7 @@ export default function App() {
                     <p className="truncate text-xs font-medium text-[var(--text-primary)]">
                       {nomeUsuario}
                     </p>
-                    <p className="truncate text-[10px] text-[var(--text-muted)]">
+                    <p className="truncate text-xs text-[var(--text-muted)]">
                       {user.email}
                     </p>
                   </div>
@@ -293,20 +303,41 @@ export default function App() {
       )}
 
       {/* Drawer Mobile e Tablet (< lg) */}
-      {menuMobileAberto && (
+      <div
+        className={`print-hidden fixed inset-0 z-50 flex lg:hidden transition-[visibility] duration-0 ${
+          menuMobileAberto
+            ? 'visible pointer-events-auto delay-0'
+            : 'invisible pointer-events-none delay-200'
+        }`}
+        role="dialog"
+        aria-modal="true"
+        aria-hidden={!menuMobileAberto}
+        aria-label="Menu de navegação"
+      >
         <div
-          className="print-hidden fixed inset-0 z-50 flex lg:hidden"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Menu de navegação"
+          className={`fixed inset-0 bg-black/50 transition-opacity duration-200 ease-out ${
+            menuMobileAberto ? 'opacity-100' : 'opacity-0'
+          }`}
+          onClick={() => setMenuMobileAberto(false)}
+        />
+        <aside
+          className={`safe-top safe-bottom relative z-10 flex w-[min(82vw,18rem)] flex-col bg-[var(--bg-surface)] border-r border-[var(--border-hairline)] shadow-2xl transition-transform duration-200 ease-out ${
+            menuMobileAberto ? 'translate-x-0' : '-translate-x-full'
+          }`}
         >
-          <div
-            className="fixed inset-0 bg-black/50 transition-opacity"
-            onClick={() => setMenuMobileAberto(false)}
-          />
-          <aside className="safe-top safe-bottom relative z-10 flex w-[min(82vw,18rem)] flex-col bg-[var(--bg-surface)] border-r border-[var(--border-hairline)] shadow-2xl">
             <div className="flex h-14 items-center justify-between border-b border-[var(--border-hairline)] px-4">
-              <BrandLogo size="md" showWordmark wordmarkClassName="text-base" />
+              <button
+                type="button"
+                onClick={() => {
+                  navegarPara('inicio');
+                  setMenuMobileAberto(false);
+                }}
+                title="Voltar para o Início"
+                aria-label="Voltar para o início"
+                className="inline-flex items-center rounded-lg py-1 hover:opacity-85 transition-opacity cursor-pointer"
+              >
+                <BrandLogo size="md" showWordmark wordmarkClassName="text-base" />
+              </button>
               <button
                 type="button"
                 onClick={() => setMenuMobileAberto(false)}
@@ -355,9 +386,9 @@ export default function App() {
 
               <div className="flex items-center justify-between gap-2 rounded-lg bg-[var(--bg-canvas)] px-3 py-2">
                 <div className="flex items-center gap-2.5 min-w-0">
-                  {user.photoURL ? (
+                  {avatarUrlSeguro ? (
                     <img
-                      src={user.photoURL}
+                      src={avatarUrlSeguro}
                       alt={nomeUsuario}
                       referrerPolicy="no-referrer"
                       className="h-8 w-8 shrink-0 rounded-full object-cover"
@@ -371,7 +402,7 @@ export default function App() {
                     <p className="truncate text-xs font-medium text-[var(--text-primary)]">
                       {nomeUsuario}
                     </p>
-                    <p className="truncate text-[10px] text-[var(--text-muted)]">
+                    <p className="truncate text-xs text-[var(--text-muted)]">
                       {user.email}
                     </p>
                   </div>
@@ -389,9 +420,8 @@ export default function App() {
                 </button>
               </div>
             </div>
-          </aside>
-        </div>
-      )}
+        </aside>
+      </div>
 
       {/* Área Principal */}
       <div className="flex flex-1 flex-col overflow-hidden min-w-0">
@@ -407,13 +437,22 @@ export default function App() {
                 <Menu className="h-5 w-5" />
               </button>
               <div className="flex items-center gap-2 text-sm min-w-0">
-                <BrandLogo
-                  size="sm"
-                  showWordmark
-                  compactMobileWordmark
-                  wordmarkClassName="text-sm whitespace-nowrap"
-                  className={recolhida ? 'inline-flex' : 'inline-flex lg:hidden'}
-                />
+                <button
+                  type="button"
+                  onClick={() => navegarPara('inicio')}
+                  title="Voltar para o Início"
+                  aria-label="Voltar para o início"
+                  className={`items-center rounded-lg py-1 hover:opacity-85 transition-opacity cursor-pointer ${
+                    recolhida ? 'inline-flex' : 'inline-flex lg:hidden'
+                  }`}
+                >
+                  <BrandLogo
+                    size="sm"
+                    showWordmark
+                    compactMobileWordmark
+                    wordmarkClassName="text-sm whitespace-nowrap"
+                  />
+                </button>
                 <span
                   className={`text-[var(--text-muted)] ${recolhida ? 'inline' : 'lg:hidden'}`}
                   aria-hidden="true"

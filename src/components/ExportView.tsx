@@ -12,6 +12,7 @@ import {
 import { segmentarTextoComGrifos } from '@/src/parser/anchor';
 import { useLeiSecaStore } from '@/src/store/useLeiSecaStore';
 import type { BackupCompleto } from '@/src/types/domain';
+import { MAX_BACKUP_JSON_BYTES, parseJsonSeguro } from '@/src/utils/security';
 import { formatarDataBR, formatarRotuloUnidade } from '@/src/utils/studyHelpers';
 
 export const ExportView: React.FC = () => {
@@ -127,8 +128,11 @@ export const ExportView: React.FC = () => {
     const file = e.target.files?.[0];
     if (!file) return;
     try {
+      if (file.size > MAX_BACKUP_JSON_BYTES) {
+        throw new Error('O arquivo de backup excede o limite máximo permitido (50 MB).');
+      }
       const texto = await file.text();
-      const json = JSON.parse(texto) as BackupCompleto;
+      const json = parseJsonSeguro<BackupCompleto>(texto);
       const res = await importarBackupCompleto(json, modoRestauracao);
       mostrarToast(
         `Backup restaurado: ${res.codigosImportados} código(s) e ${res.artigosImportados} artigo(s).`,
@@ -204,7 +208,7 @@ export const ExportView: React.FC = () => {
             {escopo === 'intervalo' && (
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[11px] text-[var(--text-muted)] mb-1">
+                  <label className="block text-xs text-[var(--text-muted)] mb-1">
                     Do artigo nº
                   </label>
                   <input
@@ -216,7 +220,7 @@ export const ExportView: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] text-[var(--text-muted)] mb-1">
+                  <label className="block text-xs text-[var(--text-muted)] mb-1">
                     Até o artigo nº
                   </label>
                   <input

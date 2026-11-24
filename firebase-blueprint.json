@@ -27,8 +27,10 @@
         },
         "photoURL": {
           "type": "string",
-          "description": "URL opcional da foto de perfil.",
-          "maxLength": 500
+          "description": "URL HTTPS opcional da foto de perfil.",
+          "minLength": 8,
+          "maxLength": 500,
+          "pattern": "^https://.*"
         },
         "provider": {
           "type": "string",
@@ -38,6 +40,14 @@
         "emailVerified": {
           "type": "boolean",
           "description": "Confirmação de verificação de e-mail."
+        },
+        "escalaFonteInterface": {
+          "type": "number",
+          "description": "Escala percentual padrão das fontes da interface do usuário (100 a 135)."
+        },
+        "tamanhoFonteLeitor": {
+          "type": "number",
+          "description": "Tamanho padrão da fonte no leitor de artigos em pixels (16 a 26)."
         },
         "createdAt": {
           "type": "string",

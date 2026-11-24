@@ -421,7 +421,7 @@ export const UploadVadeMecumModal: React.FC<UploadVadeMecumModalProps> = ({ aber
               {/* Tipo de Documento e Pasta de Destino */}
               <div className="grid grid-cols-1 gap-4 rounded-xl border border-[var(--border-hairline)] bg-[var(--bg-canvas)] p-4 sm:grid-cols-2">
                 <div>
-                  <label className="block text-[11px] font-semibold text-[var(--text-secondary)] mb-1">
+                  <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">
                     Tipo de material detectado
                   </label>
                   <select
@@ -438,7 +438,7 @@ export const UploadVadeMecumModal: React.FC<UploadVadeMecumModalProps> = ({ aber
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-semibold text-[var(--text-secondary)] mb-1">
+                  <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">
                     <span className="inline-flex items-center gap-1">
                       <FolderOpen className="h-3.5 w-3.5" aria-hidden="true" />
                       Pasta de destino
@@ -469,7 +469,7 @@ export const UploadVadeMecumModal: React.FC<UploadVadeMecumModalProps> = ({ aber
                 </div>
 
                 {tipoDocumento === 'vade_mecum' && (
-                  <p className="sm:col-span-2 text-[11px] text-[var(--text-muted)]">
+                  <p className="sm:col-span-2 text-xs text-[var(--text-muted)]">
                     Cada código listado abaixo será criado como uma subpasta organizada dentro da pasta escolhida (ex.: Vade Mecum / Constituição Federal).
                   </p>
                 )}
@@ -486,7 +486,7 @@ export const UploadVadeMecumModal: React.FC<UploadVadeMecumModalProps> = ({ aber
                     <div key={item.idTemp} className="p-4 space-y-3">
                       <div className="grid grid-cols-1 gap-3 sm:grid-cols-12">
                         <div className="sm:col-span-6">
-                          <label className="block text-[11px] font-medium text-[var(--text-muted)] mb-1">
+                          <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">
                             Nome do código / documento
                           </label>
                           <input
@@ -497,7 +497,7 @@ export const UploadVadeMecumModal: React.FC<UploadVadeMecumModalProps> = ({ aber
                           />
                         </div>
                         <div className="sm:col-span-2">
-                          <label className="block text-[11px] font-medium text-[var(--text-muted)] mb-1">
+                          <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">
                             Sigla
                           </label>
                           <input
@@ -514,7 +514,7 @@ export const UploadVadeMecumModal: React.FC<UploadVadeMecumModalProps> = ({ aber
                         </div>
                       </div>
 
-                      <div className="rounded-lg bg-[var(--bg-canvas)] px-3 py-2 text-[11px] text-[var(--text-muted)] space-y-0.5">
+                      <div className="rounded-lg bg-[var(--bg-canvas)] px-3 py-2 text-xs text-[var(--text-muted)] space-y-0.5">
                         <p className="truncate">
                           <strong className="text-[var(--text-secondary)]">Início:</strong> {primeiraLinha}
                         </p>
@@ -572,7 +572,7 @@ export const UploadVadeMecumModal: React.FC<UploadVadeMecumModalProps> = ({ aber
                       {ajustando && (
                         <div className="grid grid-cols-2 gap-3 rounded-lg bg-[var(--bg-subtle)] p-3 text-xs sm:grid-cols-4">
                           <div>
-                            <label className="block text-[11px] text-[var(--text-muted)] mb-1">
+                            <label className="block text-xs text-[var(--text-muted)] mb-1">
                               Linha inicial (1..{resultado.linhasTotais.length})
                             </label>
                             <input
@@ -591,7 +591,7 @@ export const UploadVadeMecumModal: React.FC<UploadVadeMecumModalProps> = ({ aber
                             />
                           </div>
                           <div>
-                            <label className="block text-[11px] text-[var(--text-muted)] mb-1">
+                            <label className="block text-xs text-[var(--text-muted)] mb-1">
                               Linha final (1..{resultado.linhasTotais.length})
                             </label>
                             <input
@@ -609,7 +609,7 @@ export const UploadVadeMecumModal: React.FC<UploadVadeMecumModalProps> = ({ aber
                               className="w-full rounded border border-[var(--border-hairline)] bg-[var(--bg-surface)] px-2 py-1 font-mono-tabular"
                             />
                           </div>
-                          <div className="col-span-2 flex items-end text-[11px] text-[var(--text-muted)]">
+                          <div className="col-span-2 flex items-end text-xs text-[var(--text-muted)]">
                             Altere os números de linha para expandir ou cortar exatamente onde este código começa e termina.
                           </div>
                         </div>

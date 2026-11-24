@@ -10,6 +10,11 @@ import type {
   CorConfig,
   Grifo,
 } from '@/src/types/domain';
+import {
+  escaparCelulaCsvSegura,
+  escaparHtmlAnki,
+  sanitizarNomeArquivo,
+} from '@/src/utils/security';
 import { formatarDataBR, formatarRotuloUnidade } from '@/src/utils/studyHelpers';
 
 export type EscopoExportacao = 'codigo_inteiro' | 'intervalo' | 'somente_marcados';
@@ -89,7 +94,7 @@ function baixarBlob(blob: Blob, nomeArquivo: string) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = nomeArquivo;
+  a.download = sanitizarNomeArquivo(nomeArquivo);
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
@@ -708,11 +713,14 @@ export function gerarFlashcardsDosGrifos(
 }
 
 export function exportarFlashcardsCsvAnki(cards: FlashcardGerado[]): void {
-  const escapar = (v: string) => `"${v.replace(/"/g, '""').replace(/\r?\n/g, '<br>')}"`;
   const linhas = cards.map((c) => {
-    const versoCompleto = c.nota ? `${c.verso}<br><br><i>Nota: ${c.nota}</i>` : c.verso;
+    const frenteEscapada = escaparHtmlAnki(c.frente);
+    const versoBase = escaparHtmlAnki(c.verso);
+    const versoCompleto = c.nota
+      ? `${versoBase}<br><br><i>Nota: ${escaparHtmlAnki(c.nota)}</i>`
+      : versoBase;
     const tag = `leiseca::${c.codigoSigla.replace(/\s+/g, '_')}`;
-    return `${escapar(c.frente)};${escapar(versoCompleto)};${escapar(tag)}`;
+    return `${escaparCelulaCsvSegura(frenteEscapada)};${escaparCelulaCsvSegura(versoCompleto)};${escaparCelulaCsvSegura(tag)}`;
   });
 
   // UTF-8 BOM para compatibilidade direta com Anki e Excel

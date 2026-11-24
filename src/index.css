@@ -40,9 +40,9 @@
   --brand-bg: #92400e;
 }
 
-/* Ajuste 2: aumento global centralizado de +10% na escala tipográfica (16px -> 17.6px) */
+/* Escala tipográfica adaptativa ao tamanho de fonte configurado no aparelho/navegador de cada usuário */
 html {
-  font-size: 110%;
+  font-size: 100%;
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
 }

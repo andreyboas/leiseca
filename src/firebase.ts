@@ -14,6 +14,13 @@ import {
   updateDoc,
 } from 'firebase/firestore';
 import firebaseConfig from '@/firebase-applet-config.json';
+import {
+  ESCALA_FONTE_INTERFACE_PADRAO,
+  normalizarEscalaFonteInterface,
+  normalizarTamanhoFonteLeitor,
+  TAMANHO_FONTE_LEITOR_PADRAO,
+} from '@/src/db/database';
+import { sanitizarUrlSegura } from '@/src/utils/security';
 
 const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
@@ -103,6 +110,8 @@ export interface PerfilUsuarioFirestore {
   photoURL?: string;
   provider: 'google' | 'password';
   emailVerified: boolean;
+  escalaFonteInterface: number;
+  tamanhoFonteLeitor: number;
 }
 
 function detectarProvedor(user: User): 'google' | 'password' {
@@ -129,16 +138,21 @@ export async function sincronizarPerfilUsuario(
     user.displayName || user.email.split('@')[0] || 'Estudante';
   const displayName = sanitizarTexto(displayNameBruto, 120) || 'Estudante';
   const email = sanitizarTexto(user.email, 320);
-  const photoURL = sanitizarTexto(user.photoURL, 500);
+  const photoURL = sanitizarUrlSegura(user.photoURL, { maxLength: 500 });
   const provider = detectarProvedor(user);
 
   let existente = false;
+  let dadosExistentes: Record<string, unknown> | undefined;
   try {
     const snap = await getDoc(ref);
     existente = snap.exists();
+    dadosExistentes = snap.data() as Record<string, unknown> | undefined;
   } catch (error) {
     handleFirestoreError(error, OperationType.GET, userPath);
   }
+
+  let escalaFonteInterface = ESCALA_FONTE_INTERFACE_PADRAO;
+  let tamanhoFonteLeitor = TAMANHO_FONTE_LEITOR_PADRAO;
 
   if (!existente) {
     const payload: Record<string, unknown> = {
@@ -147,6 +161,8 @@ export async function sincronizarPerfilUsuario(
       displayName,
       provider,
       emailVerified: true,
+      escalaFonteInterface,
+      tamanhoFonteLeitor,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     };
@@ -160,6 +176,16 @@ export async function sincronizarPerfilUsuario(
       handleFirestoreError(error, OperationType.CREATE, userPath);
     }
   } else {
+    const temEscalaSalva = typeof dadosExistentes?.escalaFonteInterface === 'number';
+    const temLeitorSalvo = typeof dadosExistentes?.tamanhoFonteLeitor === 'number';
+
+    escalaFonteInterface = normalizarEscalaFonteInterface(
+      temEscalaSalva ? (dadosExistentes?.escalaFonteInterface as number) : undefined
+    );
+    tamanhoFonteLeitor = normalizarTamanhoFonteLeitor(
+      temLeitorSalvo ? (dadosExistentes?.tamanhoFonteLeitor as number) : undefined
+    );
+
     const payloadAtualizacao: Record<string, unknown> = {
       displayName,
       emailVerified: true,
@@ -167,6 +193,12 @@ export async function sincronizarPerfilUsuario(
     };
     if (photoURL) {
       payloadAtualizacao.photoURL = photoURL;
+    }
+    if (!temEscalaSalva) {
+      payloadAtualizacao.escalaFonteInterface = escalaFonteInterface;
+    }
+    if (!temLeitorSalvo) {
+      payloadAtualizacao.tamanhoFonteLeitor = tamanhoFonteLeitor;
     }
 
     try {
@@ -183,7 +215,43 @@ export async function sincronizarPerfilUsuario(
     ...(photoURL ? { photoURL } : {}),
     provider,
     emailVerified: true,
+    escalaFonteInterface,
+    tamanhoFonteLeitor,
   };
+}
+
+export async function salvarPreferenciasFonteUsuario(
+  uid: string,
+  preferencias: { escalaFonteInterface?: number; tamanhoFonteLeitor?: number }
+): Promise<void> {
+  const atual = auth.currentUser;
+  if (!atual || atual.uid !== uid || !atual.emailVerified) {
+    return;
+  }
+
+  const payload: Record<string, unknown> = {
+    updatedAt: serverTimestamp(),
+  };
+
+  if (typeof preferencias.escalaFonteInterface === 'number') {
+    payload.escalaFonteInterface = normalizarEscalaFonteInterface(
+      preferencias.escalaFonteInterface
+    );
+  }
+  if (typeof preferencias.tamanhoFonteLeitor === 'number') {
+    payload.tamanhoFonteLeitor = normalizarTamanhoFonteLeitor(
+      preferencias.tamanhoFonteLeitor
+    );
+  }
+
+  if (Object.keys(payload).length <= 1) return;
+
+  const userPath = `users/${uid}`;
+  try {
+    await updateDoc(doc(db, 'users', uid), payload);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, userPath);
+  }
 }
 
 export function traduzirErroAuth(error: unknown): string {

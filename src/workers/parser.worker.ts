@@ -19,6 +19,7 @@ import type {
   RegistroHifenizacao,
   TipoDocumento,
 } from '../types/domain';
+import { sanitizarNomeArquivo, validarAssinaturaArquivo } from '../utils/security';
 
 (globalThis as unknown as { pdfjsWorker?: unknown }).pdfjsWorker = pdfjsWorker;
 
@@ -199,7 +200,12 @@ self.onmessage = async (event: MessageEvent<WorkerRequest>) => {
   const req = event.data;
   try {
     if (req.tipo === 'EXTRAIR_ARQUIVO') {
-      const ext = req.nomeArquivo.split('.').pop()?.toLowerCase();
+      const nomeSeguro = sanitizarNomeArquivo(req.nomeArquivo);
+      const ext = nomeSeguro.split('.').pop()?.toLowerCase();
+      if (!ext || !['pdf', 'docx', 'txt'].includes(ext)) {
+        throw new Error('Formato de arquivo inválido.');
+      }
+      validarAssinaturaArquivo(req.buffer, ext as 'pdf' | 'docx' | 'txt');
       postar({
         id: req.id,
         tipo: 'PROGRESSO',
