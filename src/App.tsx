@@ -179,12 +179,8 @@ export default function App() {
 
   const itemAtual = ITENS_NAVEGACAO.find((i) => i.id === pagina);
 
-  if (!authReady || !inicializado) {
-    return (
-      <div className="app-shell-height flex items-center justify-center bg-[var(--bg-canvas)] text-sm text-[var(--text-muted)]">
-        Carregando biblioteca e sessão...
-      </div>
-    );
+  if (!inicializado) {
+    return <TelaCarregando texto="Carregando sua biblioteca…" />;
   }
 
   if (!user || !emailVerificado) {
