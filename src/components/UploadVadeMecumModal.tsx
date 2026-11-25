@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import React, { useMemo, useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
+import { BookLoader } from '@/src/components/BookLoader';
 import { db, ID_PASTAS_RAIZ } from '@/src/db/database';
 import {
   contarUnidadesEstimadasPorTipo,
