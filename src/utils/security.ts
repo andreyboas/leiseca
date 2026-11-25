@@ -203,17 +203,103 @@ export function sanitizarHtmlSeguro(html: string | null | undefined): string {
   return serializarNosSeguros(parsearHtmlSeguroParaNos(html));
 }
 
+const TAGS_BLOCO_QUEBRA = new Set(['p', 'div', 'blockquote', 'pre', 'ul', 'ol']);
+
+function blocoContemApenasBr(filhos: SafeHtmlNode[] = []): boolean {
+  if (filhos.length === 0) return false;
+  let temBr = false;
+  for (const f of filhos) {
+    if (f.tipo === 'elemento' && f.tag === 'br') {
+      temBr = true;
+      continue;
+    }
+    if (f.tipo === 'texto' && !(f.texto || '').replace(/\u00a0/g, ' ').trim()) {
+      continue;
+    }
+    return false;
+  }
+  return temBr;
+}
+
+function extrairTextoDeNosSeguros(
+  nos: SafeHtmlNode[],
+  contextoLista?: { tipo: 'ul' | 'ol'; indice: number }
+): string {
+  let out = '';
+
+  const garantirQuebraAntesDeBloco = () => {
+    if (out.length > 0 && !out.endsWith('\n')) {
+      out += '\n';
+    }
+  };
+
+  for (const no of nos) {
+    if (no.tipo === 'texto') {
+      const txt = (no.texto || '').replace(/\r\n?/g, '\n').replace(/\u00a0/g, ' ');
+      if (!txt) continue;
+      // Evita duplicar quebra se um nó de texto começar com \n logo após fechamento de bloco
+      if (out.endsWith('\n') && txt.startsWith('\n')) {
+        out += txt.replace(/^\n+/, '');
+      } else {
+        out += txt;
+      }
+      continue;
+    }
+
+    if (no.tipo !== 'elemento' || !no.tag) continue;
+    const tag = no.tag;
+    const filhos = no.filhos || [];
+
+    if (tag === 'br') {
+      out += '\n';
+      continue;
+    }
+
+    if (tag === 'ul' || tag === 'ol') {
+      garantirQuebraAntesDeBloco();
+      const listaCtx = { tipo: tag as 'ul' | 'ol', indice: 1 };
+      const textoLista = extrairTextoDeNosSeguros(filhos, listaCtx);
+      out += textoLista;
+      garantirQuebraAntesDeBloco();
+      continue;
+    }
+
+    if (tag === 'li') {
+      garantirQuebraAntesDeBloco();
+      const marcador =
+        contextoLista?.tipo === 'ol' ? `${contextoLista.indice++}. ` : '• ';
+      const textoItem = extrairTextoDeNosSeguros(filhos).replace(/^\n+|\n+$/g, '');
+      if (textoItem) {
+        out += `${marcador}${textoItem}\n`;
+      }
+      continue;
+    }
+
+    if (TAGS_BLOCO_QUEBRA.has(tag)) {
+      garantirQuebraAntesDeBloco();
+      if (blocoContemApenasBr(filhos)) {
+        out += '\n';
+        continue;
+      }
+      const textoBloco = extrairTextoDeNosSeguros(filhos);
+      out += textoBloco;
+      if (textoBloco && !out.endsWith('\n')) {
+        out += '\n';
+      }
+      continue;
+    }
+
+    out += extrairTextoDeNosSeguros(filhos, contextoLista);
+  }
+
+  return out;
+}
+
 export function extrairTextoDeHtmlSeguro(html: string | null | undefined): string {
   if (!html || typeof html !== 'string') return '';
-  if (typeof DOMParser !== 'undefined') {
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(html, 'text/html');
-    for (const tagPerigosa of TAGS_HTML_DESCARTAR_CONTEUDO) {
-      doc.body.querySelectorAll(tagPerigosa).forEach((el) => el.remove());
-    }
-    return (doc.body.textContent || '').trim();
-  }
-  return limparTagSemDom(html).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+  const nos = parsearHtmlSeguroParaNos(html);
+  const texto = extrairTextoDeNosSeguros(nos);
+  return texto.replace(/\r\n?/g, '\n').replace(/^\n+|\n+$/g, '').trim();
 }
 
 export function sanitizarUrlSegura(

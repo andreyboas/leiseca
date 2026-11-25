@@ -5,8 +5,9 @@ import { db, importarBackupCompleto } from '@/src/db/database';
 import {
   type AgrupamentoExportacao,
   type EscopoExportacao,
-  type FormatoExportacao,
   executarExportacao,
+  type FormatoExportacao,
+  obterTextoAnotacaoPreservandoQuebras,
   prepararDadosExportacao,
 } from '@/src/export/exporters';
 import { segmentarTextoComGrifos } from '@/src/parser/anchor';
@@ -15,20 +16,38 @@ import type { BackupCompleto } from '@/src/types/domain';
 import { MAX_BACKUP_JSON_BYTES, parseJsonSeguro } from '@/src/utils/security';
 import { formatarDataBR, formatarRotuloUnidade } from '@/src/utils/studyHelpers';
 
+type ModoConteudoExportacao =
+  | 'somente_esquematizado'
+  | 'artigos_marcados_completos'
+  | 'codigo_completo';
+
 export const ExportView: React.FC = () => {
   const { codigoAtivoId, configuracao, mostrarToast } = useLeiSecaStore();
   const codigos = useLiveQuery(() => db.codigos.orderBy('ordem').toArray(), []) || [];
 
   const [codigoSelecionadoId, setCodigoSelecionadoId] = useState<string>('');
-  const [escopo, setEscopo] = useState<EscopoExportacao>('codigo_inteiro');
+  const [modoConteudo, setModoConteudo] = useState<ModoConteudoExportacao>('somente_esquematizado');
+  const [escopo, setEscopo] = useState<EscopoExportacao>('somente_marcados');
   const [artigoInicio, setArtigoInicio] = useState<number>(1);
   const [artigoFim, setArtigoFim] = useState<number>(50);
-  const [somenteTrechosGrifados, setSomenteTrechosGrifados] = useState(false);
-  const [incluirTextoIntegral, setIncluirTextoIntegral] = useState(true);
-  const [incluirArtigosSemMarcacoes, setIncluirArtigosSemMarcacoes] = useState(true);
   const [agrupamento, setAgrupamento] = useState<AgrupamentoExportacao>('ordem_codigo');
   const [formato, setFormato] = useState<FormatoExportacao>('pdf');
   const [exportando, setExportando] = useState(false);
+
+  const somenteTrechosGrifados = modoConteudo === 'somente_esquematizado';
+  const incluirTextoIntegral = modoConteudo !== 'somente_esquematizado';
+  const incluirArtigosSemMarcacoes = modoConteudo === 'codigo_completo';
+
+  const selecionarModoConteudo = (novoModo: ModoConteudoExportacao) => {
+    setModoConteudo(novoModo);
+    if (novoModo === 'codigo_completo') {
+      if (escopo === 'somente_marcados') {
+        setEscopo('codigo_inteiro');
+      }
+    } else if (escopo === 'codigo_inteiro') {
+      setEscopo('somente_marcados');
+    }
+  };
 
   const [modoRestauracao, setModoRestauracao] = useState<'mesclar' | 'substituir'>('mesclar');
   const inputBackupRef = useRef<HTMLInputElement>(null);
@@ -191,17 +210,78 @@ export const ExportView: React.FC = () => {
             </div>
 
             <div>
+              <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5">
+                O que exportar
+              </label>
+              <div className="space-y-2">
+                {(
+                  [
+                    {
+                      id: 'somente_esquematizado',
+                      titulo: 'Somente o esquematizado (grifos e anotações)',
+                      desc: 'Exporta apenas os trechos que você grifou e suas anotações, sem texto não marcado.',
+                    },
+                    {
+                      id: 'artigos_marcados_completos',
+                      titulo: 'Artigos marcados completos',
+                      desc: 'Exporta o texto integral do código referente apenas aos artigos que têm grifos ou anotações.',
+                    },
+                    {
+                      id: 'codigo_completo',
+                      titulo: 'Código inteiro (com e sem marcações)',
+                      desc: 'Exporta todos os artigos do código ou do intervalo selecionado.',
+                    },
+                  ] as const
+                ).map((item) => {
+                  const ativo = modoConteudo === item.id;
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => selecionarModoConteudo(item.id)}
+                      className={`w-full rounded-lg border px-3 py-2 text-left transition-colors cursor-pointer ${
+                        ativo
+                          ? 'border-[var(--accent-primary)] bg-[var(--bg-subtle)]'
+                          : 'border-[var(--border-hairline)] hover:bg-[var(--bg-canvas)]'
+                      }`}
+                    >
+                      <span className="block text-xs font-semibold text-[var(--text-primary)]">
+                        {item.titulo}
+                      </span>
+                      <span className="mt-0.5 block text-[11px] leading-snug text-[var(--text-muted)]">
+                        {item.desc}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div>
               <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1">
-                Escopo
+                Abrangência no código
               </label>
               <select
-                value={escopo}
-                onChange={(e) => setEscopo(e.target.value as EscopoExportacao)}
+                value={escopo === 'intervalo' ? 'intervalo' : 'todo_codigo'}
+                onChange={(e) => {
+                  if (e.target.value === 'intervalo') {
+                    setEscopo('intervalo');
+                  } else {
+                    setEscopo(
+                      modoConteudo === 'codigo_completo'
+                        ? 'codigo_inteiro'
+                        : 'somente_marcados'
+                    );
+                  }
+                }}
                 className="w-full rounded-lg border border-[var(--border-hairline)] bg-[var(--bg-canvas)] px-3 py-2 text-xs text-[var(--text-primary)]"
               >
-                <option value="codigo_inteiro">Código inteiro</option>
+                <option value="todo_codigo">
+                  {modoConteudo === 'codigo_completo'
+                    ? 'Código inteiro'
+                    : 'Todo o código (apenas artigos com marcação/anotação)'}
+                </option>
                 <option value="intervalo">Intervalo de artigos (ex: 1º ao 50)</option>
-                <option value="somente_marcados">Somente artigos com marcações</option>
               </select>
             </div>
 
@@ -264,38 +344,6 @@ export const ExportView: React.FC = () => {
               </div>
             </div>
 
-            <div className="space-y-2.5 pt-1 text-xs text-[var(--text-secondary)]">
-              <label className="flex items-center justify-between gap-2 cursor-pointer">
-                <span>Somente trechos grifados (resumo esquematizado)</span>
-                <input
-                  type="checkbox"
-                  checked={somenteTrechosGrifados}
-                  onChange={(e) => {
-                    setSomenteTrechosGrifados(e.target.checked);
-                    if (e.target.checked) setIncluirTextoIntegral(false);
-                  }}
-                />
-              </label>
-              <label className="flex items-center justify-between gap-2 cursor-pointer">
-                <span>Incluir texto integral dos artigos</span>
-                <input
-                  type="checkbox"
-                  checked={incluirTextoIntegral}
-                  disabled={somenteTrechosGrifados}
-                  onChange={(e) => setIncluirTextoIntegral(e.target.checked)}
-                />
-              </label>
-              <label className="flex items-center justify-between gap-2 cursor-pointer">
-                <span>Incluir artigos sem marcações</span>
-                <input
-                  type="checkbox"
-                  checked={incluirArtigosSemMarcacoes}
-                  disabled={escopo === 'somente_marcados'}
-                  onChange={(e) => setIncluirArtigosSemMarcacoes(e.target.checked)}
-                />
-              </label>
-            </div>
-
             <div>
               <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5">
                 Formato de saída
@@ -320,9 +368,13 @@ export const ExportView: React.FC = () => {
 
             <button
               type="button"
-              disabled={!dadosPreparados || exportando}
+              disabled={
+                !dadosPreparados ||
+                exportando ||
+                (formato !== 'json' && dadosPreparados.artigosFiltrados.length === 0)
+              }
               onClick={handleExportar}
-              className="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-[var(--accent-primary)] py-2.5 text-sm font-medium text-white hover:opacity-90 disabled:opacity-40 cursor-pointer"
+              className="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-[var(--accent-primary)] py-2.5 text-sm font-medium text-white hover:opacity-90 disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
             >
               <Download className="h-4 w-4" aria-hidden="true" />
               {exportando
@@ -442,21 +494,29 @@ export const ExportView: React.FC = () => {
                           </h4>
 
                           {somenteTrechosGrifados || !incluirTextoIntegral ? (
-                            <div className="space-y-1.5 pl-2">
-                              {gs.map((g) => {
-                                const cor = mapaCores.get(g.corId);
-                                return (
-                                  <p key={g.id} className="text-xs leading-relaxed">
-                                    <mark
-                                      style={{ backgroundColor: cor?.hexBg || '#fef08a' }}
-                                      className="rounded-xs px-1 text-slate-900"
-                                    >
-                                      {g.trecho}
-                                    </mark>
-                                  </p>
-                                );
-                              })}
-                            </div>
+                            gs.length > 0 && (
+                              <div className="space-y-1.5 pl-2">
+                                {gs.map((g) => {
+                                  const cor = mapaCores.get(g.corId);
+                                  const bloco = art.blocos.find((b) => b.id === g.blocoId);
+                                  return (
+                                    <p key={g.id} className="text-xs leading-relaxed">
+                                      {bloco && bloco.tipo !== 'caput' && art.tipoUnidade !== 'secao' && (
+                                        <strong className="mr-1.5 text-[var(--text-primary)]">
+                                          {bloco.rotulo} ·
+                                        </strong>
+                                      )}
+                                      <mark
+                                        style={{ backgroundColor: cor?.hexBg || '#fef08a' }}
+                                        className="rounded-xs px-1 text-slate-900"
+                                      >
+                                        {g.trecho}
+                                      </mark>
+                                    </p>
+                                  );
+                                })}
+                              </div>
+                            )
                           ) : (
                             <div className="space-y-1.5 text-xs leading-relaxed text-[var(--text-secondary)]">
                               {art.blocos.map((bloco) => {
@@ -499,9 +559,12 @@ export const ExportView: React.FC = () => {
                             <div className="mt-2 rounded-lg bg-[var(--bg-canvas)] p-2.5 space-y-1 text-xs">
                               <p className="font-semibold text-[var(--text-primary)]">Anotações:</p>
                               {ns.map((n) => (
-                                <p key={n.id} className="text-[var(--text-secondary)]">
+                                <p
+                                  key={n.id}
+                                  className="text-[var(--text-secondary)] whitespace-pre-line"
+                                >
                                   • {n.trechoSelecionado ? `"${n.trechoSelecionado}" — ` : ''}
-                                  {n.conteudoTexto}
+                                  {obterTextoAnotacaoPreservandoQuebras(n)}
                                   {n.jurisprudencia ? ` (Jur.: ${n.jurisprudencia})` : ''}
                                 </p>
                               ))}
