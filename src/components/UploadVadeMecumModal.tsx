@@ -389,7 +389,7 @@ export const UploadVadeMecumModal: React.FC<UploadVadeMecumModalProps> = ({ aber
 
           {etapa === 'processando' && (
             <div className="py-12 text-center">
-              <FileText className="mx-auto h-8 w-8 text-[var(--accent-primary)]" aria-hidden="true" />
+              <BookLoader size="md" texto="Processando arquivo…" className="mx-auto" />
               <p className="mt-3 text-sm font-medium text-[var(--text-primary)]">
                 {mensagemProgresso || 'Processando arquivo...'}
               </p>
