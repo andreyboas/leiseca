@@ -1,23 +1,86 @@
-import { CheckCircle2, Database, LogOut, Palette, ShieldCheck, Trash2, UserCheck } from 'lucide-react';
-import React, { useState } from 'react';
+import {
+  CheckCircle2,
+  Database,
+  LogOut,
+  Palette,
+  Plus,
+  ShieldCheck,
+  Trash2,
+  UserCheck,
+} from 'lucide-react';
+import React, { useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { db } from '@/src/db/database';
 import { useLeiSecaStore } from '@/src/store/useLeiSecaStore';
 import { sanitizarUrlSegura } from '@/src/utils/security';
+import {
+  CORES_SUGESTAO_MARCADOR,
+  derivarPaletaMarcador,
+  MAX_CORES_PERSONALIZADAS,
+} from '@/src/utils/studyHelpers';
 
 export const SettingsView: React.FC = () => {
   const { user, perfil, sair } = useAuth();
   const {
     configuracao,
     atualizarCorConfig,
+    adicionarCorPersonalizada,
+    removerCorPersonalizada,
     atualizarPreferencias,
     atualizarMetaDiaria,
     mostrarToast,
   } = useLeiSecaStore();
 
   const [confirmandoLimpar, setConfirmandoLimpar] = useState(false);
+  const [novoMarcadorNome, setNovoMarcadorNome] = useState('');
+  const [novoMarcadorSignificado, setNovoMarcadorSignificado] = useState('');
+  const [novoMarcadorCor, setNovoMarcadorCor] = useState<string>(CORES_SUGESTAO_MARCADOR[0]);
+  const [criandoMarcador, setCriandoMarcador] = useState(false);
   const avatarUrlSeguro = sanitizarUrlSegura(user?.photoURL);
+
+  const marcadoresPersonalizados = useMemo(
+    () => configuracao.cores.filter((c) => c.personalizada),
+    [configuracao.cores]
+  );
+  const limitePersonalizadosAtingido =
+    marcadoresPersonalizados.length >= MAX_CORES_PERSONALIZADAS;
+  const previewPaleta = useMemo(
+    () => derivarPaletaMarcador(novoMarcadorCor),
+    [novoMarcadorCor]
+  );
+
+  const handleCriarMarcador = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (limitePersonalizadosAtingido || criandoMarcador) return;
+    if (!novoMarcadorNome.trim()) {
+      mostrarToast('Digite um nome para o novo marcador.', 'erro');
+      return;
+    }
+
+    setCriandoMarcador(true);
+    try {
+      const res = await adicionarCorPersonalizada({
+        nome: novoMarcadorNome,
+        corHex: novoMarcadorCor,
+        significado: novoMarcadorSignificado,
+      });
+      if (!res.sucesso) {
+        mostrarToast(res.erro || 'Não foi possível criar o marcador.', 'erro');
+        return;
+      }
+      setNovoMarcadorNome('');
+      setNovoMarcadorSignificado('');
+      const proximaSugestao =
+        CORES_SUGESTAO_MARCADOR[
+          (marcadoresPersonalizados.length + 1) % CORES_SUGESTAO_MARCADOR.length
+        ];
+      setNovoMarcadorCor(proximaSugestao);
+      mostrarToast('Marcador de texto criado!', 'sucesso');
+    } finally {
+      setCriandoMarcador(false);
+    }
+  };
 
   const contagemCodigos = useLiveQuery(() => db.codigos.count(), []) ?? 0;
   const contagemArtigos = useLiveQuery(() => db.artigos.count(), []) ?? 0;
@@ -112,17 +175,22 @@ export const SettingsView: React.FC = () => {
       )}
 
       {/* Cores do Marca-texto */}
-      <section className="rounded-xl border border-[var(--border-hairline)] bg-[var(--bg-surface)] p-6 space-y-4">
-        <div className="flex items-center justify-between">
+      <section className="rounded-xl border border-[var(--border-hairline)] bg-[var(--bg-surface)] p-6 space-y-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h2 className="text-base font-semibold text-[var(--text-primary)]">
-              Legenda das cores do marca-texto
+              Marcadores de texto e cores
             </h2>
             <p className="text-xs text-[var(--text-muted)]">
-              Defina o significado de cada cor do marca-texto.
+              Personalize o nome, o significado e crie até {MAX_CORES_PERSONALIZADAS} marcadores com a cor que preferir.
             </p>
           </div>
-          <Palette className="h-5 w-5 text-[var(--text-muted)]" aria-hidden="true" />
+          <div className="flex items-center gap-2">
+            <span className="rounded-lg border border-[var(--border-hairline)] bg-[var(--bg-canvas)] px-2.5 py-1 text-xs font-medium font-mono-tabular text-[var(--text-secondary)]">
+              {marcadoresPersonalizados.length}/{MAX_CORES_PERSONALIZADAS} personalizados
+            </span>
+            <Palette className="h-5 w-5 text-[var(--text-muted)]" aria-hidden="true" />
+          </div>
         </div>
 
         <div className="divide-y divide-[var(--border-hairline)]">
@@ -131,28 +199,195 @@ export const SettingsView: React.FC = () => {
               key={cor.id}
               className="flex flex-wrap items-center gap-3 py-3 first:pt-1 last:pb-1"
             >
-              <span
-                className="h-7 w-7 shrink-0 rounded-full border"
-                style={{ backgroundColor: cor.hexBg, borderColor: cor.hexBorder }}
-              />
+              {cor.personalizada ? (
+                <label
+                  title="Alterar cor do marcador"
+                  className="relative flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-full border shadow-xs transition-transform hover:scale-105"
+                  style={{ backgroundColor: cor.hexBg, borderColor: cor.hexBorder }}
+                >
+                  <input
+                    type="color"
+                    value={cor.hexBorder}
+                    onChange={(e) =>
+                      void atualizarCorConfig(cor.id, { corHex: e.target.value })
+                    }
+                    aria-label={`Cor do marcador ${cor.nome}`}
+                    className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                  />
+                </label>
+              ) : (
+                <span
+                  className="h-8 w-8 shrink-0 rounded-full border"
+                  style={{ backgroundColor: cor.hexBg, borderColor: cor.hexBorder }}
+                />
+              )}
+
               <input
                 type="text"
+                maxLength={40}
                 value={cor.nome}
-                onChange={(e) => atualizarCorConfig(cor.id, { nome: e.target.value })}
-                aria-label={`Nome da cor ${cor.nome}`}
-                className="w-28 rounded-lg border border-[var(--border-hairline)] bg-[var(--bg-canvas)] px-2.5 py-1.5 text-xs font-medium text-[var(--text-primary)]"
+                onChange={(e) => void atualizarCorConfig(cor.id, { nome: e.target.value })}
+                aria-label={`Nome do marcador ${cor.nome}`}
+                placeholder="Nome do marcador"
+                className="w-36 sm:w-40 rounded-lg border border-[var(--border-hairline)] bg-[var(--bg-canvas)] px-2.5 py-1.5 text-xs font-medium text-[var(--text-primary)]"
               />
+
               <input
                 type="text"
+                maxLength={100}
                 value={cor.significado}
-                onChange={(e) => atualizarCorConfig(cor.id, { significado: e.target.value })}
-                aria-label={`Significado da cor ${cor.nome}`}
-                placeholder="Significado nos estudos..."
-                className="w-full min-w-0 sm:w-auto sm:flex-1 sm:min-w-[200px] rounded-lg border border-[var(--border-hairline)] bg-[var(--bg-canvas)] px-3 py-1.5 text-xs text-[var(--text-primary)]"
+                onChange={(e) =>
+                  void atualizarCorConfig(cor.id, { significado: e.target.value })
+                }
+                aria-label={`Significado do marcador ${cor.nome}`}
+                placeholder="Significado nos estudos (opcional)..."
+                className="w-full min-w-0 sm:w-auto sm:flex-1 sm:min-w-[180px] rounded-lg border border-[var(--border-hairline)] bg-[var(--bg-canvas)] px-3 py-1.5 text-xs text-[var(--text-primary)]"
               />
+
+              {cor.personalizada && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    void removerCorPersonalizada(cor.id);
+                    mostrarToast('Marcador personalizado removido.', 'info');
+                  }}
+                  title={`Excluir marcador ${cor.nome}`}
+                  aria-label={`Excluir marcador ${cor.nome}`}
+                  className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[var(--border-hairline)] text-[var(--text-muted)] hover:border-red-300 hover:bg-red-50 hover:text-red-600 dark:hover:border-red-900/50 dark:hover:bg-red-950/30 dark:hover:text-red-400 cursor-pointer"
+                >
+                  <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                </button>
+              )}
             </div>
           ))}
         </div>
+
+        {/* Criar novo marcador personalizado */}
+        <form
+          onSubmit={handleCriarMarcador}
+          className="rounded-xl border border-dashed border-[var(--border-hairline)] bg-[var(--bg-canvas)] p-4 space-y-3"
+        >
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="text-xs font-semibold text-[var(--text-primary)]">
+              Criar novo marcador de texto
+            </span>
+            <span className="text-[11px] text-[var(--text-muted)]">
+              {limitePersonalizadosAtingido
+                ? 'Limite de 5 marcadores atingido'
+                : `Restam ${MAX_CORES_PERSONALIZADAS - marcadoresPersonalizados.length} vaga(s)`}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-12 sm:items-end">
+            <div className="sm:col-span-4">
+              <label
+                htmlFor="novo-marcador-nome"
+                className="block text-[11px] font-medium text-[var(--text-secondary)] mb-1"
+              >
+                Nome do marcador
+              </label>
+              <input
+                id="novo-marcador-nome"
+                type="text"
+                maxLength={40}
+                disabled={limitePersonalizadosAtingido}
+                value={novoMarcadorNome}
+                onChange={(e) => setNovoMarcadorNome(e.target.value)}
+                placeholder="Ex: Jurisprudência STJ"
+                className="w-full rounded-lg border border-[var(--border-hairline)] bg-[var(--bg-surface)] px-3 py-2 text-xs text-[var(--text-primary)] disabled:opacity-50"
+              />
+            </div>
+
+            <div className="sm:col-span-5">
+              <label
+                htmlFor="novo-marcador-significado"
+                className="block text-[11px] font-medium text-[var(--text-secondary)] mb-1"
+              >
+                Significado (opcional)
+              </label>
+              <input
+                id="novo-marcador-significado"
+                type="text"
+                maxLength={100}
+                disabled={limitePersonalizadosAtingido}
+                value={novoMarcadorSignificado}
+                onChange={(e) => setNovoMarcadorSignificado(e.target.value)}
+                placeholder="Ex: Teses repetitivas e informativos"
+                className="w-full rounded-lg border border-[var(--border-hairline)] bg-[var(--bg-surface)] px-3 py-2 text-xs text-[var(--text-primary)] disabled:opacity-50"
+              />
+            </div>
+
+            <div className="sm:col-span-3 flex items-center gap-2">
+              <label
+                title="Escolher qualquer cor"
+                className="relative flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-lg border border-[var(--border-hairline)] shadow-xs"
+                style={{
+                  backgroundColor: previewPaleta.hexBg,
+                  borderColor: previewPaleta.hexBorder,
+                }}
+              >
+                <input
+                  type="color"
+                  disabled={limitePersonalizadosAtingido}
+                  value={novoMarcadorCor}
+                  onChange={(e) => setNovoMarcadorCor(e.target.value)}
+                  aria-label="Escolher cor do novo marcador"
+                  className="absolute inset-0 h-full w-full cursor-pointer opacity-0 disabled:cursor-not-allowed"
+                />
+              </label>
+
+              <button
+                type="submit"
+                disabled={limitePersonalizadosAtingido || criandoMarcador}
+                className="inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-lg bg-[var(--accent-primary)] px-3 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed whitespace-nowrap"
+              >
+                <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+                Adicionar
+              </button>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-[11px] text-[var(--text-muted)] mr-1">Sugestões:</span>
+              {CORES_SUGESTAO_MARCADOR.map((corHex) => {
+                const selecionada =
+                  novoMarcadorCor.toLowerCase() === corHex.toLowerCase();
+                return (
+                  <button
+                    key={corHex}
+                    type="button"
+                    disabled={limitePersonalizadosAtingido}
+                    onClick={() => setNovoMarcadorCor(corHex)}
+                    aria-label={`Selecionar cor ${corHex}`}
+                    style={{ backgroundColor: corHex }}
+                    className={`h-5 w-5 rounded-full border border-black/15 transition-transform cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
+                      selecionada
+                        ? 'ring-2 ring-[var(--accent-primary)] ring-offset-1 ring-offset-[var(--bg-canvas)] scale-110'
+                        : 'hover:scale-110'
+                    }`}
+                  />
+                );
+              })}
+            </div>
+
+            <div className="flex items-center gap-2 text-xs">
+              <span className="text-[11px] text-[var(--text-muted)]">Prévia:</span>
+              <span
+                style={{
+                  backgroundColor:
+                    configuracao.preferencias.tema === 'escuro'
+                      ? previewPaleta.hexBgDark
+                      : previewPaleta.hexBg,
+                  borderBottom: `1px solid ${previewPaleta.hexBorder}88`,
+                }}
+                className="rounded px-2 py-0.5 text-xs font-medium text-[var(--text-primary)]"
+              >
+                {novoMarcadorNome.trim() || 'Trecho destacado'}
+              </span>
+            </div>
+          </div>
+        </form>
       </section>
 
       {/* Preferências e Meta */}

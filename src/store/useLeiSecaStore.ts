@@ -40,7 +40,13 @@ import type {
   StatusEstudo,
   TipoDocumento,
 } from '@/src/types/domain';
-import { calcularProximaRevisao } from '@/src/utils/studyHelpers';
+import { validarCorCssSegura } from '@/src/utils/security';
+import {
+  calcularProximaRevisao,
+  derivarPaletaMarcador,
+  MAX_CORES_PERSONALIZADAS,
+  normalizarCorHex6,
+} from '@/src/utils/studyHelpers';
 
 export type PaginaAtiva =
   | 'inicio'
@@ -122,7 +128,16 @@ interface LeiSecaState {
     escalaFonteInterface?: number;
     tamanhoFonteLeitor?: number;
   }) => Promise<void>;
-  atualizarCorConfig: (corId: string, parcial: Partial<CorConfig>) => Promise<void>;
+  atualizarCorConfig: (
+    corId: string,
+    parcial: Partial<CorConfig> & { corHex?: string }
+  ) => Promise<void>;
+  adicionarCorPersonalizada: (dados: {
+    nome: string;
+    corHex: string;
+    significado?: string;
+  }) => Promise<{ sucesso: boolean; erro?: string }>;
+  removerCorPersonalizada: (corId: string) => Promise<void>;
   atualizarMetaDiaria: (meta: number) => Promise<void>;
   concluirTutorial: () => Promise<void>;
 
@@ -272,18 +287,36 @@ export const useLeiSecaStore = create<LeiSecaState>((set, get) => ({
   navegarPara: (pagina) => set({ pagina }),
 
   abrirArtigoNoLeitor: async (codigoId, artigoId) => {
+    let codigoFinalId = codigoId;
     let alvoArtigoId = artigoId || null;
+
+    if (alvoArtigoId) {
+      const art = await db.artigos.get(alvoArtigoId);
+      if (art) {
+        codigoFinalId = art.codigoId;
+      } else {
+        alvoArtigoId = null;
+      }
+    }
+
     if (!alvoArtigoId) {
-      const primeiro = await db.artigos
+      let primeiro = await db.artigos
         .where('[codigoId+ordem]')
-        .between([codigoId, 0], [codigoId, Infinity])
+        .between([codigoFinalId, 0], [codigoFinalId, Number.MAX_SAFE_INTEGER])
         .first();
+      if (!primeiro) {
+        const ordenados = await db.artigos
+          .where('codigoId')
+          .equals(codigoFinalId)
+          .sortBy('ordem');
+        primeiro = ordenados[0];
+      }
       alvoArtigoId = primeiro?.id || null;
     }
 
     set({
       pagina: 'leitor',
-      codigoAtivoId: codigoId,
+      codigoAtivoId: codigoFinalId,
       artigoAtivoId: alvoArtigoId,
     });
 
@@ -291,7 +324,8 @@ export const useLeiSecaStore = create<LeiSecaState>((set, get) => ({
       await get().definirArtigoAtivo(alvoArtigoId);
     } else {
       await db.configuracoes.update('default', {
-        ultimoCodigoId: codigoId,
+        ultimoCodigoId: codigoFinalId,
+        ultimoArtigoId: undefined,
         atualizadoEm: Date.now(),
       });
     }
@@ -476,9 +510,42 @@ export const useLeiSecaStore = create<LeiSecaState>((set, get) => ({
 
   atualizarCorConfig: async (corId, parcial) => {
     const atual = get().configuracao;
-    const novasCores = atual.cores.map((c) =>
-      c.id === corId ? { ...c, ...parcial } : c
-    );
+    const { corHex, ...rest } = parcial;
+    const paletaDerivada =
+      typeof corHex === 'string'
+        ? derivarPaletaMarcador(normalizarCorHex6(corHex))
+        : null;
+
+    const novasCores = atual.cores.map((c) => {
+      if (c.id !== corId) return c;
+      const nomeLimpo =
+        typeof rest.nome === 'string' ? rest.nome.slice(0, 40) : c.nome;
+      const significadoLimpo =
+        typeof rest.significado === 'string'
+          ? rest.significado.slice(0, 100)
+          : c.significado;
+
+      const hexBg = paletaDerivada
+        ? paletaDerivada.hexBg
+        : validarCorCssSegura(rest.hexBg, c.hexBg);
+      const hexBgDark = paletaDerivada
+        ? paletaDerivada.hexBgDark
+        : validarCorCssSegura(rest.hexBgDark, c.hexBgDark);
+      const hexBorder = paletaDerivada
+        ? paletaDerivada.hexBorder
+        : validarCorCssSegura(rest.hexBorder, c.hexBorder);
+
+      return {
+        ...c,
+        ...rest,
+        nome: nomeLimpo,
+        significado: significadoLimpo,
+        hexBg,
+        hexBgDark,
+        hexBorder,
+      };
+    });
+
     const novaCfg: ConfiguracaoUsuario = {
       ...atual,
       cores: novasCores,
@@ -486,6 +553,81 @@ export const useLeiSecaStore = create<LeiSecaState>((set, get) => ({
     };
     set({ configuracao: novaCfg });
     await db.configuracoes.put(novaCfg);
+  },
+
+  adicionarCorPersonalizada: async ({ nome, corHex, significado }) => {
+    const atual = get().configuracao;
+    const personalizadas = atual.cores.filter((c) => c.personalizada);
+    if (personalizadas.length >= MAX_CORES_PERSONALIZADAS) {
+      return {
+        sucesso: false,
+        erro: `Limite máximo de ${MAX_CORES_PERSONALIZADAS} marcadores personalizados atingido.`,
+      };
+    }
+
+    const nomeLimpo = nome.trim().slice(0, 40);
+    if (!nomeLimpo) {
+      return { sucesso: false, erro: 'Informe um nome para o marcador.' };
+    }
+
+    const corNormalizada = normalizarCorHex6(corHex, '#a855f7');
+    const paleta = derivarPaletaMarcador(corNormalizada);
+    const novaCor: CorConfig = {
+      id: novoId('cor'),
+      nome: nomeLimpo,
+      significado: (significado || '').trim().slice(0, 100),
+      hexBg: validarCorCssSegura(paleta.hexBg, '#e9d5ff'),
+      hexBgDark: validarCorCssSegura(paleta.hexBgDark, 'rgba(168, 85, 247, 0.32)'),
+      hexBorder: validarCorCssSegura(paleta.hexBorder, '#a855f7'),
+      atalho: '',
+      personalizada: true,
+    };
+
+    const novaCfg: ConfiguracaoUsuario = {
+      ...atual,
+      cores: [...atual.cores, novaCor],
+      atualizadoEm: Date.now(),
+    };
+    set({ configuracao: novaCfg });
+    await db.configuracoes.put(novaCfg);
+    return { sucesso: true };
+  },
+
+  removerCorPersonalizada: async (corId) => {
+    const atual = get().configuracao;
+    const alvo = atual.cores.find((c) => c.id === corId);
+    if (!alvo?.personalizada) return;
+
+    const novasCores = atual.cores.filter((c) => c.id !== corId);
+    const corFallbackId =
+      novasCores.find((c) => !c.personalizada)?.id || novasCores[0]?.id || 'amarelo';
+
+    const novaCfg: ConfiguracaoUsuario = {
+      ...atual,
+      cores: novasCores,
+      atualizadoEm: Date.now(),
+    };
+
+    await db.transaction('rw', [db.configuracoes, db.grifos, db.anotacoes], async () => {
+      await db.configuracoes.put(novaCfg);
+      const grifosAfetados = await db.grifos.where('corId').equals(corId).toArray();
+      if (grifosAfetados.length > 0) {
+        const agora = Date.now();
+        await db.grifos.bulkPut(
+          grifosAfetados.map((g) => ({ ...g, corId: corFallbackId, atualizadoEm: agora }))
+        );
+      }
+      const todasNotas = await db.anotacoes.toArray();
+      const notasAfetadas = todasNotas.filter((n) => n.corId === corId);
+      if (notasAfetadas.length > 0) {
+        const agora = Date.now();
+        await db.anotacoes.bulkPut(
+          notasAfetadas.map((n) => ({ ...n, corId: corFallbackId, atualizadoEm: agora }))
+        );
+      }
+    });
+
+    set({ configuracao: novaCfg });
   },
 
   atualizarMetaDiaria: async (meta) => {
@@ -641,7 +783,7 @@ export const useLeiSecaStore = create<LeiSecaState>((set, get) => ({
       let pastaIdFinal = pastaRaizPadrao;
       if (tipoDoc === 'vade_mecum') {
         const nomeSubpasta = item.nome.trim() || `Código ${idx + 1}`;
-        const subExistente = existentesPastas.find(
+        const subExistente = [...existentesPastas, ...novasPastas].find(
           (p) =>
             p.parentId === pastaRaizPadrao &&
             p.nome.toLowerCase() === nomeSubpasta.toLowerCase()
@@ -908,6 +1050,10 @@ export const useLeiSecaStore = create<LeiSecaState>((set, get) => ({
         novosArtigos[0]?.id ||
         null;
       set({ artigoAtivoId: novoAtivo });
+      await db.configuracoes.update('default', {
+        ultimoArtigoId: novoAtivo || undefined,
+        atualizadoEm: Date.now(),
+      });
     }
 
     if (reancoragem.grifosNaoReancorados.length > 0) {

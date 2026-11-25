@@ -4,15 +4,17 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '@/src/db/database';
 import { useLeiSecaStore } from '@/src/store/useLeiSecaStore';
 import type { Artigo } from '@/src/types/domain';
+import { buscarArtigosRankeados } from '@/src/utils/librarySearch';
 import { formatarRotuloUnidade } from '@/src/utils/studyHelpers';
 
 function destacarTermo(texto: string, termo: string): React.ReactNode {
-  if (!termo.trim()) return texto;
-  const limpo = termo.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const limpoTrim = termo.trim();
+  if (!limpoTrim) return texto;
+  const limpo = limpoTrim.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const regex = new RegExp(`(${limpo})`, 'gi');
   const partes = texto.split(regex);
   return partes.map((parte, idx) =>
-    regex.test(parte) ? (
+    idx % 2 === 1 ? (
       <mark key={idx} className="rounded bg-amber-200/80 px-0.5 text-slate-900 dark:bg-amber-400/35 dark:text-amber-100">
         {parte}
       </mark>
@@ -23,7 +25,12 @@ function destacarTermo(texto: string, termo: string): React.ReactNode {
 }
 
 export const GlobalSearchModal: React.FC = () => {
-  const { buscaGlobalAberta, setBuscaGlobalAberta, abrirArtigoNoLeitor } = useLeiSecaStore();
+  const {
+    buscaGlobalAberta,
+    codigoAtivoId,
+    setBuscaGlobalAberta,
+    abrirArtigoNoLeitor,
+  } = useLeiSecaStore();
   const [consulta, setConsulta] = useState('');
   const [filtroCodigoId, setFiltroCodigoId] = useState<string>('todos');
   const [resultados, setResultados] = useState<Artigo[]>([]);
@@ -58,9 +65,10 @@ export const GlobalSearchModal: React.FC = () => {
 
   useEffect(() => {
     if (!buscaGlobalAberta) return;
-    const termo = consulta.trim().toLowerCase();
+    const termo = consulta.trim();
     if (!termo) {
       setResultados([]);
+      setCarregando(false);
       return;
     }
 
@@ -69,48 +77,30 @@ export const GlobalSearchModal: React.FC = () => {
 
     const timer = setTimeout(async () => {
       try {
-        const colecao =
+        const todos =
           filtroCodigoId === 'todos'
-            ? db.artigos
-            : db.artigos.where('codigoId').equals(filtroCodigoId);
+            ? await db.artigos.toArray()
+            : await db.artigos.where('codigoId').equals(filtroCodigoId).toArray();
 
-        const encontrados: Artigo[] = [];
-        const termoNumero = termo.replace(/^art\.?\s*/i, '').replace(/[º°]/g, '').trim();
-
-        await colecao.each((art) => {
-          if (encontrados.length >= 60) return;
-          const numLimpo = art.numero.replace(/[º°]/g, '').toLowerCase();
-          const bateNumero = termoNumero && (numLimpo === termoNumero || numLimpo.startsWith(termoNumero));
-          const bateTexto =
-            art.textoIntegral.toLowerCase().includes(termo) ||
-            (art.epigrafe?.toLowerCase().includes(termo) ?? false);
-
-          if (bateNumero || bateTexto) {
-            encontrados.push(art);
-          }
-        });
-
-        encontrados.sort((a, b) => {
-          const aExato = a.numero.replace(/[º°]/g, '').toLowerCase() === termoNumero ? 0 : 1;
-          const bExato = b.numero.replace(/[º°]/g, '').toLowerCase() === termoNumero ? 0 : 1;
-          if (aExato !== bExato) return aExato - bExato;
-          return a.numeroSort - b.numeroSort;
+        const ranqueados = buscarArtigosRankeados(todos, termo, {
+          limite: 60,
+          codigoPrioritarioId: codigoAtivoId,
         });
 
         if (!cancelado) {
-          setResultados(encontrados);
+          setResultados(ranqueados);
           setCarregando(false);
         }
       } catch {
         if (!cancelado) setCarregando(false);
       }
-    }, 120);
+    }, 100);
 
     return () => {
       cancelado = true;
       clearTimeout(timer);
     };
-  }, [consulta, filtroCodigoId, buscaGlobalAberta]);
+  }, [consulta, filtroCodigoId, buscaGlobalAberta, codigoAtivoId]);
 
   if (!buscaGlobalAberta) return null;
 

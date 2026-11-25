@@ -1,8 +1,11 @@
 import {
+  AlertCircle,
   BookOpen,
   CalendarClock,
+  CheckCircle2,
   Download,
   Home,
+  Info,
   Layers,
   Library,
   LogOut,
@@ -506,25 +509,39 @@ export default function App() {
       <OfflineIndicator />
 
       {toast && (
-        <div
-          role="status"
-          className={`print-hidden safe-bottom fixed bottom-4 right-4 z-50 flex max-w-[calc(100vw-2rem)] items-center gap-3 rounded-xl border px-4 py-3 text-xs font-medium shadow-xl ${
-            toast.tipo === 'erro'
-              ? 'border-red-300 bg-red-950 text-red-100'
-              : toast.tipo === 'sucesso'
-              ? 'border-emerald-500/40 bg-slate-900 text-white'
-              : 'border-[var(--border-hairline)] bg-[var(--bg-surface)] text-[var(--text-primary)]'
-          }`}
-        >
-          <span>{toast.mensagem}</span>
-          <button
-            type="button"
-            onClick={limparToast}
-            className="rounded p-0.5 opacity-70 hover:opacity-100 cursor-pointer"
-            aria-label="Fechar aviso"
+        <div className="print-hidden pointer-events-none fixed inset-x-0 bottom-0 z-50 flex justify-center px-3 sm:px-6 pb-[max(1rem,env(safe-area-inset-bottom,0px))]">
+          <div
+            role="status"
+            aria-live="polite"
+            className={`pointer-events-auto grid w-full sm:w-auto sm:min-w-[300px] sm:max-w-lg grid-cols-[1.5rem_minmax(0,1fr)_1.5rem] items-center gap-2.5 rounded-xl border px-3.5 py-3 text-xs sm:text-sm font-medium shadow-xl ${
+              toast.tipo === 'erro'
+                ? 'border-red-400/50 bg-red-950 text-red-100'
+                : toast.tipo === 'sucesso'
+                ? 'border-emerald-500/40 bg-slate-900 text-white'
+                : 'border-[var(--border-hairline)] bg-[var(--bg-surface)] text-[var(--text-primary)]'
+            }`}
           >
-            <X className="h-3.5 w-3.5" />
-          </button>
+            <span className="flex h-6 w-6 items-center justify-center" aria-hidden="true">
+              {toast.tipo === 'erro' ? (
+                <AlertCircle className="h-4 w-4 text-red-300" />
+              ) : toast.tipo === 'sucesso' ? (
+                <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+              ) : (
+                <Info className="h-4 w-4 text-[var(--accent-primary)]" />
+              )}
+            </span>
+            <span className="min-w-0 text-center leading-snug [overflow-wrap:anywhere]">
+              {toast.mensagem}
+            </span>
+            <button
+              type="button"
+              onClick={limparToast}
+              className="inline-flex h-6 w-6 items-center justify-center rounded-md opacity-75 transition-opacity hover:opacity-100 hover:bg-black/10 dark:hover:bg-white/10 cursor-pointer"
+              aria-label="Fechar aviso"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
         </div>
       )}
     </div>

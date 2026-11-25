@@ -203,7 +203,7 @@ export const ArticleBlockRenderer: React.FC<ArticleBlockRendererProps> = ({
                       onClicarGrifo(grifoPrincipal, e.currentTarget.getBoundingClientRect());
                     }}
                     className="rounded-xs px-0.5 text-inherit cursor-pointer transition-opacity hover:opacity-85"
-                    title={`${cor?.nome || 'Grifo'}: ${cor?.significado || ''} (clique para editar)`}
+                    title={`${cor?.nome || 'Grifo'}${cor?.significado ? `: ${cor.significado}` : ''} (clique para editar)`}
                   >
                     {renderSegmentoTexto(seg.texto, seg.inicio)}
                   </mark>

@@ -206,3 +206,60 @@ export function formatarContagemUnidades(
   return `${total} ${total === 1 ? 'artigo' : 'artigos'}`;
 }
 
+export const MAX_CORES_PERSONALIZADAS = 5;
+
+export const CORES_SUGESTAO_MARCADOR = [
+  '#a855f7', // Roxo
+  '#14b8a6', // Turquesa
+  '#3b82f6', // Azul cobalto
+  '#ec4899', // Magenta
+  '#ef4444', // Vermelho
+  '#84cc16', // Lima
+  '#06b6d4', // Ciano
+  '#64748b', // Grafite
+] as const;
+
+export function normalizarCorHex6(corBruta: string, fallback = '#a855f7'): string {
+  if (typeof corBruta !== 'string') return fallback;
+  const limpa = corBruta.trim();
+  const match3 = /^#([0-9a-fA-F]{3})$/.exec(limpa);
+  if (match3) {
+    const [r, g, b] = match3[1].split('');
+    return `#${r}${r}${g}${g}${b}${b}`.toLowerCase();
+  }
+  const match6 = /^#([0-9a-fA-F]{6})$/.exec(limpa);
+  if (match6) {
+    return `#${match6[1].toLowerCase()}`;
+  }
+  return fallback;
+}
+
+export function derivarPaletaMarcador(corHexBruta: string): {
+  hexBg: string;
+  hexBgDark: string;
+  hexBorder: string;
+} {
+  const hexBorder = normalizarCorHex6(corHexBruta, '#a855f7');
+  const r = parseInt(hexBorder.slice(1, 3), 16);
+  const g = parseInt(hexBorder.slice(3, 5), 16);
+  const b = parseInt(hexBorder.slice(5, 7), 16);
+
+  // Calcula luminância percebida para manter contraste legível no papel claro e sépia
+  const luminancia = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  const fatorBranco =
+    luminancia >= 0.78 ? 0.12 : Math.min(0.76, Math.max(0.45, 0.78 - luminancia * 0.42));
+
+  const misturarComBranco = (canal: number) =>
+    Math.round(canal + (255 - canal) * fatorBranco)
+      .toString(16)
+      .padStart(2, '0');
+
+  const hexBg = `#${misturarComBranco(r)}${misturarComBranco(g)}${misturarComBranco(b)}`;
+  const hexBgDark = `rgba(${r}, ${g}, ${b}, 0.32)`;
+
+  return {
+    hexBg,
+    hexBgDark,
+    hexBorder,
+  };
+}

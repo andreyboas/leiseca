@@ -181,7 +181,8 @@ export interface CorConfig {
   hexBg: string;
   hexBgDark: string;
   hexBorder: string;
-  atalho: string; // '1'..'6'
+  atalho: string; // '1'..'5' ou '' para marcadores personalizados
+  personalizada?: boolean;
 }
 
 export interface PreferenciasLeitura {

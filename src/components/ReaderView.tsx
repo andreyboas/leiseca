@@ -41,6 +41,12 @@ import type {
   Progresso,
   StatusEstudo,
 } from '@/src/types/domain';
+import {
+  buscarArtigosRankeados,
+  codigoCorrespondeBusca,
+  normalizarTextoBusca,
+  pontuarArtigoParaBusca,
+} from '@/src/utils/librarySearch';
 import { formatarRotuloUnidade } from '@/src/utils/studyHelpers';
 import { ArticleBlockRenderer } from './ArticleBlockRenderer';
 import { ArticleEditorModal } from './ArticleEditorModal';
@@ -58,18 +64,45 @@ interface SelecaoPendente {
   contextoDepois: string;
   x: number;
   y: number;
+  acima: boolean;
 }
 
 interface GrifoAtivoPopover {
   grifo: Grifo;
   x: number;
   y: number;
+  acima: boolean;
 }
 
 interface GrupoArvore {
   chave: string;
   titulo: string;
   artigos: Artigo[];
+}
+
+function calcularPosicaoPopoverFlutuante(rect: DOMRect): {
+  x: number;
+  y: number;
+  acima: boolean;
+} {
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  const margemLateral = 8;
+  const larguraEstimada = Math.min(340, vw - margemLateral * 2);
+  const metade = larguraEstimada / 2;
+
+  const centroAlvo = rect.left + rect.width / 2;
+  const x = Math.min(
+    vw - metade - margemLateral,
+    Math.max(metade + margemLateral, centroAlvo)
+  );
+
+  const acima = rect.top >= 150;
+  const y = acima
+    ? Math.min(vh - 24, Math.max(72, rect.top - 10))
+    : Math.min(vh - 96, Math.max(64, rect.bottom + 10));
+
+  return { x, y, acima };
 }
 
 function obterOffsetNoBloco(blocoEl: HTMLElement, container: Node, offset: number): number {
@@ -139,10 +172,6 @@ export const ReaderView: React.FC = () => {
   const [redimensionandoNotas, setRedimensionandoNotas] = useState(false);
   const larguraNotasRef = useRef(larguraSalvaNotas);
 
-  const [viewportMobile, setViewportMobile] = useState(() =>
-    typeof window !== 'undefined' ? window.innerWidth < 640 : false
-  );
-
   useEffect(() => {
     setLarguraLeitorTemp(larguraSalvaLeitor);
     larguraLeitorRef.current = larguraSalvaLeitor;
@@ -153,15 +182,6 @@ export const ReaderView: React.FC = () => {
     larguraNotasRef.current = larguraSalvaNotas;
   }, [larguraSalvaNotas]);
 
-  useEffect(() => {
-    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
-    const mq = window.matchMedia('(max-width: 639px)');
-    const atualizar = () => setViewportMobile(mq.matches);
-    atualizar();
-    mq.addEventListener('change', atualizar);
-    return () => mq.removeEventListener('change', atualizar);
-  }, []);
-
   const pastas = useLiveQuery(() => db.pastas.orderBy('ordem').toArray(), []) || [];
   const codigos = useLiveQuery(() => db.codigos.orderBy('ordem').toArray(), []) || [];
   const codigoAtivo = useMemo(
@@ -169,17 +189,26 @@ export const ReaderView: React.FC = () => {
     [codigos, codigoAtivoId]
   );
 
-  const artigos =
-    useLiveQuery(
-      async () => {
-        if (!codigoAtivo) return [];
-        return db.artigos
-          .where('[codigoId+ordem]')
-          .between([codigoAtivo.id, 0], [codigoAtivo.id, Infinity])
-          .toArray();
-      },
-      [codigoAtivo?.id]
-    ) || [];
+  const artigosResultado = useLiveQuery(
+    async () => {
+      if (!codigoAtivo) {
+        return { codigoId: null as string | null, lista: [] as Artigo[] };
+      }
+      const lista = await db.artigos
+        .where('codigoId')
+        .equals(codigoAtivo.id)
+        .sortBy('ordem');
+      return { codigoId: codigoAtivo.id, lista };
+    },
+    [codigoAtivo?.id]
+  );
+
+  const artigosProntos =
+    !!codigoAtivo &&
+    artigosResultado !== undefined &&
+    artigosResultado.codigoId === codigoAtivo.id;
+
+  const artigos = artigosProntos ? artigosResultado.lista : [];
 
   const grifosCodigo =
     useLiveQuery(
@@ -275,21 +304,36 @@ export const ReaderView: React.FC = () => {
 
   const irParaInputRef = useRef<HTMLInputElement>(null);
   const listaScrollRef = useRef<HTMLDivElement>(null);
+  const ultimaPastaAutoExpandidaRef = useRef<string>('');
+  const ultimoScrollChaveRef = useRef<string>('');
+  const skipNextAutoScrollRef = useRef<boolean>(false);
+  const interagindoPopoverRef = useRef<boolean>(false);
 
-  // Garantir artigo ativo ao abrir leitor
+  const marcarInteracaoPopover = useCallback(() => {
+    interagindoPopoverRef.current = true;
+    window.setTimeout(() => {
+      interagindoPopoverRef.current = false;
+    }, 350);
+  }, []);
+
+  const [resultadosOutrosCodigos, setResultadosOutrosCodigos] = useState<Artigo[]>([]);
+
+  // Garantir artigo ativo ao abrir leitor somente após os artigos do código atual carregarem
   useEffect(() => {
-    if (
-      codigoAtivo &&
-      artigos.length > 0 &&
-      (!artigoAtivoId || !artigos.some((a) => a.id === artigoAtivoId))
-    ) {
-      definirArtigoAtivo(artigos[0].id);
+    if (!artigosProntos || !codigoAtivo || artigos.length === 0) return;
+    if (!artigoAtivoId || !artigos.some((a) => a.id === artigoAtivoId)) {
+      void definirArtigoAtivo(artigos[0].id);
     }
-  }, [codigoAtivo?.id, artigos, artigoAtivoId, definirArtigoAtivo]);
+  }, [artigosProntos, codigoAtivo?.id, artigos, artigoAtivoId, definirArtigoAtivo]);
 
-  // Expande automaticamente o caminho de pastas do documento ativo
+  // Expande automaticamente o caminho de pastas apenas quando muda o documento ativo
   useEffect(() => {
-    if (!codigoAtivo?.pastaId) return;
+    if (!codigoAtivo?.pastaId || mapaPastas.size === 0) return;
+    const chave = `${codigoAtivo.id}:${codigoAtivo.pastaId}`;
+    if (ultimaPastaAutoExpandidaRef.current === chave) return;
+    if (!mapaPastas.has(codigoAtivo.pastaId)) return;
+    ultimaPastaAutoExpandidaRef.current = chave;
+
     const expandidos: Record<string, boolean> = {};
     let cur = mapaPastas.get(codigoAtivo.pastaId);
     let guarda = 0;
@@ -299,7 +343,7 @@ export const ReaderView: React.FC = () => {
       guarda += 1;
     }
     setPastasExpandidas((prev) => ({ ...prev, ...expandidos }));
-  }, [codigoAtivo?.pastaId, mapaPastas]);
+  }, [codigoAtivo?.id, codigoAtivo?.pastaId, mapaPastas]);
 
   // Caminho de pastas para breadcrumb superior
   const caminhoPastasAtivo = useMemo(() => {
@@ -343,31 +387,67 @@ export const ReaderView: React.FC = () => {
     return mapa;
   }, [pastas, codigos]);
 
+  const mapaCodigos = useMemo(() => new Map(codigos.map((c) => [c.id, c])), [codigos]);
+
+  // Busca secundária em outros documentos quando usuário digita na árvore lateral
+  useEffect(() => {
+    const termo = buscaArvore.trim();
+    if (!termo || !codigoAtivo) {
+      setResultadosOutrosCodigos([]);
+      return;
+    }
+    let cancelado = false;
+    const timer = setTimeout(async () => {
+      try {
+        const outros = await db.artigos
+          .where('codigoId')
+          .notEqual(codigoAtivo.id)
+          .toArray();
+        const ranqueados = buscarArtigosRankeados(outros, termo, { limite: 20 });
+        if (!cancelado) setResultadosOutrosCodigos(ranqueados);
+      } catch {
+        if (!cancelado) setResultadosOutrosCodigos([]);
+      }
+    }, 150);
+
+    return () => {
+      cancelado = true;
+      clearTimeout(timer);
+    };
+  }, [buscaArvore, codigoAtivo?.id]);
+
   // Agrupamento hierárquico dos itens/artigos do documento ativo
   const gruposArvore = useMemo<GrupoArvore[]>(() => {
-    const termo = buscaArvore.trim().toLowerCase();
-    const termoNum = termo.replace(/^art\.?\s*/i, '').replace(/[º°]/g, '');
+    const termo = buscaArvore.trim();
 
-    const filtrados = artigos.filter((art) => {
-      if (filtroArvore === 'favoritos' && !art.favorito) return false;
+    const filtradosComScore: Array<{ art: Artigo; score: number }> = [];
+    for (const art of artigos) {
+      if (filtroArvore === 'favoritos' && !art.favorito) continue;
       if (filtroArvore === 'revisar') {
         const st = mapaProgresso.get(art.id)?.status;
-        if (st !== 'revisar') return false;
+        if (st !== 'revisar') continue;
       }
-      if (!termo) return true;
-      const numLimpo = art.numero.replace(/[º°]/g, '').toLowerCase();
-      return (
-        numLimpo.includes(termoNum) ||
-        art.textoIntegral.toLowerCase().includes(termo) ||
-        (art.epigrafe?.toLowerCase().includes(termo) ?? false) ||
-        (art.subtipoMeta?.numeroProcesso?.toLowerCase().includes(termo) ?? false)
-      );
-    });
+      if (!termo) {
+        filtradosComScore.push({ art, score: 0 });
+      } else {
+        const score = pontuarArtigoParaBusca(art, termo);
+        if (score !== null) {
+          filtradosComScore.push({ art, score });
+        }
+      }
+    }
+
+    if (termo) {
+      filtradosComScore.sort((a, b) => {
+        if (a.score !== b.score) return a.score - b.score;
+        return a.art.ordem - b.art.ordem;
+      });
+    }
 
     const grupos: GrupoArvore[] = [];
     const mapa = new Map<string, GrupoArvore>();
 
-    for (const art of filtrados) {
+    for (const { art } of filtradosComScore) {
       const titulo =
         formatarHierarquiaResumo(art.hierarquia) ||
         (art.tipoUnidade === 'sumula'
@@ -397,6 +477,34 @@ export const ReaderView: React.FC = () => {
     overscan: 6,
   });
 
+  // Garante rolagem até o artigo alvo no Modo Lista ao abrir via Biblioteca ou Busca
+  useEffect(() => {
+    if (
+      !artigosProntos ||
+      preferencias.modoVisualizacao !== 'lista' ||
+      indiceAtivo < 0 ||
+      !codigoAtivo
+    ) {
+      return;
+    }
+    const alvo = artigos[indiceAtivo];
+    if (!alvo) return;
+    const chave = `${codigoAtivo.id}:${alvo.id}:${preferencias.modoVisualizacao}`;
+    if (ultimoScrollChaveRef.current === chave) return;
+    ultimoScrollChaveRef.current = chave;
+
+    if (skipNextAutoScrollRef.current) {
+      skipNextAutoScrollRef.current = false;
+      return;
+    }
+
+    const raf = requestAnimationFrame(() => {
+      virtualizer.scrollToIndex(indiceAtivo, { align: 'start' });
+    });
+    return () => cancelAnimationFrame(raf);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [artigosProntos, codigoAtivo?.id, artigoAtivoId, preferencias.modoVisualizacao, indiceAtivo]);
+
   const navegarParaIndice = useCallback(
     async (novoIdx: number) => {
       if (novoIdx < 0 || novoIdx >= artigos.length) return;
@@ -411,19 +519,10 @@ export const ReaderView: React.FC = () => {
 
   const handleIrParaArtigo = async (e: React.FormEvent) => {
     e.preventDefault();
-    const alvo = irParaNumero.trim().replace(/^art\.?\s*/i, '').replace(/[º°]/g, '').toLowerCase();
-    if (!alvo) return;
-    const idx = artigos.findIndex(
-      (a) => a.numero.replace(/[º°]/g, '').toLowerCase() === alvo
-    );
-    const idxAprox =
-      idx !== -1
-        ? idx
-        : artigos.findIndex(
-            (a) =>
-              a.numero.replace(/[º°]/g, '').toLowerCase().startsWith(alvo) ||
-              (a.epigrafe?.toLowerCase().includes(alvo) ?? false)
-          );
+    const consultaLimpa = irParaNumero.trim();
+    if (!consultaLimpa) return;
+    const melhor = buscarArtigosRankeados(artigos, consultaLimpa, { limite: 1 })[0];
+    const idxAprox = melhor ? artigos.findIndex((a) => a.id === melhor.id) : -1;
     if (idxAprox === -1) {
       mostrarToast(`Item "${irParaNumero}" não encontrado neste documento.`, 'erro');
       return;
@@ -478,16 +577,24 @@ export const ReaderView: React.FC = () => {
     window.addEventListener('mouseup', onMouseUp);
   };
 
-  // Captura seleção de texto (Desktop e Mobile)
+  // Captura seleção de texto (Desktop e Mobile) e oculta balão se a seleção foi desfeita
   const processarSelecaoTexto = useCallback(() => {
     if (modoMemorizacao) return;
     const sel = window.getSelection();
     if (!sel || sel.isCollapsed || sel.rangeCount === 0) {
+      if (!interagindoPopoverRef.current) {
+        setSelecaoPendente(null);
+      }
       return;
     }
     const range = sel.getRangeAt(0);
     const textoSel = sel.toString().trim();
-    if (textoSel.length < 2) return;
+    if (textoSel.length < 2) {
+      if (!interagindoPopoverRef.current) {
+        setSelecaoPendente(null);
+      }
+      return;
+    }
 
     let node: Node | null = range.commonAncestorContainer;
     let blocoEl: HTMLElement | null = null;
@@ -501,7 +608,12 @@ export const ReaderView: React.FC = () => {
       node = node.parentNode;
     }
 
-    if (!blocoEl || !artigoEl) return;
+    if (!blocoEl || !artigoEl) {
+      if (!interagindoPopoverRef.current) {
+        setSelecaoPendente(null);
+      }
+      return;
+    }
 
     const blocoId = blocoEl.dataset.blocoId!;
     const artigoId = artigoEl.dataset.artigoId!;
@@ -517,8 +629,7 @@ export const ReaderView: React.FC = () => {
 
     const trechoLiteral = bloco.texto.slice(inicio, fim);
     const rect = range.getBoundingClientRect();
-    const x = Math.min(window.innerWidth - 190, Math.max(16, rect.left + rect.width / 2));
-    const y = Math.max(64, rect.top - 10);
+    const pos = calcularPosicaoPopoverFlutuante(rect);
 
     setGrifoPopover(null);
     setSelecaoPendente({
@@ -530,8 +641,9 @@ export const ReaderView: React.FC = () => {
       trecho: trechoLiteral,
       contextoAntes: bloco.texto.slice(Math.max(0, inicio - 24), inicio),
       contextoDepois: bloco.texto.slice(fim, Math.min(bloco.texto.length, fim + 24)),
-      x,
-      y,
+      x: pos.x,
+      y: pos.y,
+      acima: pos.acima,
     });
   }, [artigos, modoMemorizacao]);
 
@@ -539,11 +651,25 @@ export const ReaderView: React.FC = () => {
     let timer: number | null = null;
     const onSelectionChange = () => {
       if (timer) window.clearTimeout(timer);
+      const sel = window.getSelection();
+      if (!sel || sel.isCollapsed || sel.toString().trim().length < 2) {
+        timer = window.setTimeout(() => {
+          if (interagindoPopoverRef.current) return;
+          const atual = window.getSelection();
+          if (!atual || atual.isCollapsed || atual.toString().trim().length < 2) {
+            setSelecaoPendente(null);
+          }
+        }, 70);
+        return;
+      }
       timer = window.setTimeout(() => {
-        const sel = window.getSelection();
-        if (!sel || sel.isCollapsed) return;
+        const atual = window.getSelection();
+        if (!atual || atual.isCollapsed || atual.toString().trim().length < 2) {
+          if (!interagindoPopoverRef.current) setSelecaoPendente(null);
+          return;
+        }
         processarSelecaoTexto();
-      }, 280);
+      }, 240);
     };
     document.addEventListener('selectionchange', onSelectionChange);
     return () => {
@@ -551,6 +677,38 @@ export const ReaderView: React.FC = () => {
       document.removeEventListener('selectionchange', onSelectionChange);
     };
   }, [processarSelecaoTexto]);
+
+  // Fecha o balão automaticamente ao clicar/tocar em outra parte fora do balão
+  useEffect(() => {
+    if (!selecaoPendente && !grifoPopover) return;
+    const onPointerDownFora = (e: PointerEvent) => {
+      const alvo = e.target as HTMLElement | null;
+      if (!alvo) return;
+      if (alvo.closest('[data-popover-grifo="true"]')) return;
+
+      if (grifoPopover && !alvo.closest('[data-grifo-id]')) {
+        setGrifoPopover(null);
+      }
+
+      if (selecaoPendente) {
+        window.setTimeout(() => {
+          if (interagindoPopoverRef.current) return;
+          const sel = window.getSelection();
+          if (!sel || sel.isCollapsed || sel.toString().trim().length < 2) {
+            setSelecaoPendente(null);
+          }
+        }, 60);
+      }
+    };
+    document.addEventListener('pointerdown', onPointerDownFora, true);
+    return () => document.removeEventListener('pointerdown', onPointerDownFora, true);
+  }, [selecaoPendente, grifoPopover]);
+
+  // Fecha popovers abertos ao trocar de artigo ou documento
+  useEffect(() => {
+    setSelecaoPendente(null);
+    setGrifoPopover(null);
+  }, [codigoAtivo?.id, artigoAtivoId]);
 
   const aplicarGrifoComCor = useCallback(
     async (corId: string) => {
@@ -631,7 +789,7 @@ export const ReaderView: React.FC = () => {
       if (emInput) return;
 
       if (selecaoPendente) {
-        const corAtalho = cores.find((c) => c.atalho === e.key);
+        const corAtalho = cores.find((c) => c.atalho && c.atalho === e.key);
         if (corAtalho) {
           e.preventDefault();
           aplicarGrifoComCor(corAtalho.id);
@@ -669,6 +827,41 @@ export const ReaderView: React.FC = () => {
     alternarModoFocoTotal,
   ]);
 
+  // Determina quais pastas têm correspondência na busca atual (deve ficar antes de qualquer return condicional)
+  const pastasComMatch = useMemo(() => {
+    const termoNorm = normalizarTextoBusca(buscaArvore);
+    if (!termoNorm) return null;
+
+    const visiveis = new Set<string>();
+    const marcarAncestrais = (pastaId?: string) => {
+      let cur = pastaId;
+      let guarda = 0;
+      while (cur && guarda < 10) {
+        if (visiveis.has(cur)) break;
+        visiveis.add(cur);
+        cur = mapaPastas.get(cur)?.parentId || undefined;
+        guarda += 1;
+      }
+    };
+
+    for (const p of pastas) {
+      if (normalizarTextoBusca(p.nome).includes(termoNorm)) {
+        marcarAncestrais(p.id);
+      }
+    }
+
+    for (const doc of codigos) {
+      const docBate =
+        codigoCorrespondeBusca(doc, buscaArvore) ||
+        (!!codigoAtivo && doc.id === codigoAtivo.id && gruposArvore.length > 0);
+      if (docBate && doc.pastaId) {
+        marcarAncestrais(doc.pastaId);
+      }
+    }
+
+    return visiveis;
+  }, [buscaArvore, pastas, codigos, codigoAtivo?.id, gruposArvore.length, mapaPastas]);
+
   if (!codigoAtivo) {
     return (
       <div className="flex h-full flex-col items-center justify-center p-6 sm:p-8 text-center">
@@ -699,7 +892,8 @@ export const ReaderView: React.FC = () => {
 
   // Renderiza árvore de pastas + documentos dentro da barra lateral do leitor
   const renderPastasLeitor = (parentId: string | null, nivel = 0): React.ReactNode => {
-    const termo = buscaArvore.trim().toLowerCase();
+    const termo = buscaArvore.trim();
+    const termoNorm = normalizarTextoBusca(termo);
     const filhas = pastas.filter((p) => (p.parentId || null) === parentId);
     const docsDiretos = parentId
       ? codigos.filter((c) => c.pastaId === parentId)
@@ -709,7 +903,8 @@ export const ReaderView: React.FC = () => {
       <>
         {filhas.map((pasta) => {
           const qtdDocs = contagemDocsPorPasta.get(pasta.id) || 0;
-          if (qtdDocs === 0 && !termo) return null;
+          if (!termo && qtdDocs === 0) return null;
+          if (termo && pastasComMatch && !pastasComMatch.has(pasta.id)) return null;
           const expandida = !!termo || !!pastasExpandidas[pasta.id];
 
           return (
@@ -720,7 +915,7 @@ export const ReaderView: React.FC = () => {
                   setPastasExpandidas((prev) => ({ ...prev, [pasta.id]: !prev[pasta.id] }))
                 }
                 style={{ paddingLeft: `${nivel * 10 + 6}px` }}
-                className="flex w-full items-center justify-between gap-1.5 rounded-md py-1.5 pr-2 text-left text-xs font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)] cursor-pointer"
+                className="flex min-h-[38px] lg:min-h-0 w-full items-center justify-between gap-1.5 rounded-md py-1.5 pr-2 text-left text-xs font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)] cursor-pointer"
               >
                 <span className="flex items-center gap-1.5 min-w-0">
                   {expandida ? (
@@ -749,11 +944,15 @@ export const ReaderView: React.FC = () => {
 
         {docsDiretos.map((doc) => {
           const ativoDoc = doc.id === codigoAtivo.id;
+          const pastaPaiBate =
+            !!termoNorm &&
+            !!doc.pastaId &&
+            normalizarTextoBusca(mapaPastas.get(doc.pastaId)?.nome || '').includes(termoNorm);
           const bateBuscaDoc =
             !termo ||
-            doc.nome.toLowerCase().includes(termo) ||
-            doc.sigla.toLowerCase().includes(termo) ||
-            ativoDoc;
+            codigoCorrespondeBusca(doc, termo) ||
+            pastaPaiBate ||
+            (ativoDoc && gruposArvore.length > 0);
           if (!bateBuscaDoc) return null;
 
           return (
@@ -767,7 +966,7 @@ export const ReaderView: React.FC = () => {
                   }
                 }}
                 style={{ paddingLeft: `${nivel * 10 + 18}px` }}
-                className={`flex w-full items-center justify-between gap-1.5 rounded-md py-1.5 pr-2 text-left text-xs transition-colors cursor-pointer ${
+                className={`flex min-h-[38px] lg:min-h-0 w-full items-center justify-between gap-1.5 rounded-md py-1.5 pr-2 text-left text-xs transition-colors cursor-pointer ${
                   ativoDoc
                     ? 'bg-[var(--bg-subtle)] font-semibold text-[var(--text-primary)]'
                     : 'text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)]/60'
@@ -788,13 +987,17 @@ export const ReaderView: React.FC = () => {
                   style={{ paddingLeft: `${nivel * 10 + 22}px` }}
                   className="space-y-1 border-l border-[var(--border-hairline)] ml-3 pl-2 py-1"
                 >
-                  {gruposArvore.length === 0 ? (
+                  {!artigosProntos ? (
                     <p className="px-2 py-2 text-xs text-[var(--text-muted)]">
-                      Nenhum item encontrado com este filtro.
+                      Carregando itens...
+                    </p>
+                  ) : gruposArvore.length === 0 ? (
+                    <p className="px-2 py-2 text-xs text-[var(--text-muted)]">
+                      Nenhum item encontrado neste documento.
                     </p>
                   ) : (
                     gruposArvore.map((grupo) => {
-                      const colapsado = !!gruposColapsados[grupo.chave];
+                      const colapsado = !termo && !!gruposColapsados[grupo.chave];
                       return (
                         <div key={grupo.chave} className="space-y-0.5">
                           <button
@@ -838,7 +1041,7 @@ export const ReaderView: React.FC = () => {
                                         setSidebarLeitorAberta(false);
                                       }
                                     }}
-                                    className={`flex w-full items-center justify-between gap-2 rounded-md px-2 py-1 text-left text-xs transition-colors cursor-pointer ${
+                                    className={`flex min-h-[36px] lg:min-h-0 w-full items-center justify-between gap-2 rounded-md px-2 py-1 text-left text-xs transition-colors cursor-pointer ${
                                       ativo
                                         ? 'bg-[var(--bg-subtle)] font-semibold text-[var(--text-primary)]'
                                         : 'text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)]/60'
@@ -897,7 +1100,8 @@ export const ReaderView: React.FC = () => {
         data-artigo-id={art.id}
         onClick={() => {
           if (art.id !== artigoAtivoId && preferencias.modoVisualizacao === 'lista') {
-            definirArtigoAtivo(art.id);
+            skipNextAutoScrollRef.current = true;
+            void definirArtigoAtivo(art.id);
           }
         }}
         className={`rounded-xl border border-[var(--border-hairline)] bg-[var(--bg-surface)] px-4 py-5 sm:px-9 sm:py-8 transition-colors ${
@@ -1019,10 +1223,12 @@ export const ReaderView: React.FC = () => {
               revelarTudo={revelarTudoCloze}
               onClicarGrifo={(grifo, rect) => {
                 setSelecaoPendente(null);
+                const pos = calcularPosicaoPopoverFlutuante(rect);
                 setGrifoPopover({
                   grifo,
-                  x: Math.min(window.innerWidth - 180, Math.max(16, rect.left + rect.width / 2)),
-                  y: Math.max(64, rect.top - 10),
+                  x: pos.x,
+                  y: pos.y,
+                  acima: pos.acima,
                 });
               }}
               onClicarIconeNota={(nota) => {
@@ -1070,14 +1276,15 @@ export const ReaderView: React.FC = () => {
                 ))}
               </select>
 
-              <form onSubmit={handleIrParaArtigo} className="hidden md:flex items-center gap-1">
+              <form onSubmit={handleIrParaArtigo} className="flex items-center gap-1">
                 <input
                   ref={irParaInputRef}
                   type="text"
                   value={irParaNumero}
                   onChange={(e) => setIrParaNumero(e.target.value)}
-                  placeholder="Ir para nº (Ctrl+G)"
-                  className="w-32 rounded-lg border border-[var(--border-hairline)] bg-[var(--bg-canvas)] px-2.5 py-1 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none"
+                  placeholder="Ir p/ nº"
+                  aria-label="Ir para número do artigo"
+                  className="w-20 sm:w-32 rounded-lg border border-[var(--border-hairline)] bg-[var(--bg-canvas)] px-2 sm:px-2.5 py-1.5 sm:py-1 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none"
                 />
               </form>
             </div>
@@ -1431,7 +1638,7 @@ export const ReaderView: React.FC = () => {
                 '--leitor-w': `${larguraLeitorTemp}px`,
               } as React.CSSProperties
             }
-            className={`print-hidden relative z-20 flex shrink-0 flex-col bg-[var(--bg-surface)] overflow-hidden max-lg:fixed max-lg:inset-y-14 max-lg:left-0 max-lg:w-[min(85vw,21rem)] max-lg:shadow-2xl ${
+            className={`print-hidden relative z-20 flex shrink-0 flex-col bg-[var(--bg-surface)] overflow-hidden max-lg:fixed max-lg:top-14 max-lg:bottom-0 max-lg:left-0 max-lg:w-[min(85vw,21rem)] max-lg:shadow-2xl ${
               sidebarLeitorAberta
                 ? 'lg:w-[var(--leitor-w)] border-r border-[var(--border-hairline)]'
                 : 'lg:w-0 border-r-0 max-lg:hidden'
@@ -1484,8 +1691,39 @@ export const ReaderView: React.FC = () => {
                 </div>
               </div>
 
-              <div className="touch-scroll flex-1 overflow-y-auto p-2 space-y-1">
-                {renderPastasLeitor(null)}
+              <div className="touch-scroll flex-1 overflow-y-auto p-2 space-y-2">
+                <div>{renderPastasLeitor(null)}</div>
+
+                {buscaArvore.trim() && resultadosOutrosCodigos.length > 0 && (
+                  <div className="border-t border-[var(--border-hairline)] pt-2 space-y-1">
+                    <p className="px-2 text-[0.7rem] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+                      Em outros documentos
+                    </p>
+                    {resultadosOutrosCodigos.map((art) => {
+                      const cod = mapaCodigos.get(art.codigoId);
+                      return (
+                        <button
+                          key={art.id}
+                          type="button"
+                          onClick={async () => {
+                            await abrirArtigoNoLeitor(art.codigoId, art.id);
+                            if (window.innerWidth < 1024) {
+                              setSidebarLeitorAberta(false);
+                            }
+                          }}
+                          className="flex min-h-[36px] lg:min-h-0 w-full flex-col rounded-md px-2 py-1.5 text-left text-xs hover:bg-[var(--bg-subtle)] cursor-pointer"
+                        >
+                          <span className="font-mono-tabular font-semibold text-[var(--text-primary)] truncate">
+                            {cod?.sigla || 'Doc'} · {formatarRotuloUnidade(art, { curto: true })}
+                          </span>
+                          <span className="truncate text-[0.72rem] text-[var(--text-muted)]">
+                            {art.epigrafe || art.textoIntegral}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -1597,6 +1835,10 @@ export const ReaderView: React.FC = () => {
                       </button>
                     </div>
                   </>
+                ) : !artigosProntos ? (
+                  <p className="text-center text-sm text-[var(--text-muted)]">
+                    Carregando documento...
+                  </p>
                 ) : (
                   <p className="text-center text-sm text-[var(--text-muted)]">
                     Nenhum item estruturado encontrado neste documento.
@@ -1607,50 +1849,63 @@ export const ReaderView: React.FC = () => {
           ) : (
             /* MODO LISTA CONTÍNUA VIRTUALIZADA */
             <div ref={listaScrollRef} className="touch-scroll h-full overflow-y-auto px-3 py-5 sm:px-8">
-              <div
-                className="relative mx-auto w-full max-w-[72ch]"
-                style={{ height: `${virtualizer.getTotalSize()}px` }}
-              >
-                {virtualizer.getVirtualItems().map((virtualRow) => {
-                  const art = artigos[virtualRow.index];
-                  if (!art) return null;
-                  return (
-                    <div
-                      key={art.id}
-                      data-index={virtualRow.index}
-                      ref={virtualizer.measureElement}
-                      style={{
-                        position: 'absolute',
-                        top: 0,
-                        left: 0,
-                        width: '100%',
-                        transform: `translateY(${virtualRow.start}px)`,
-                      }}
-                      className="pb-5"
-                    >
-                      {renderCartaoArtigo(art)}
-                    </div>
-                  );
-                })}
-              </div>
+              {!artigosProntos ? (
+                <p className="py-10 text-center text-sm text-[var(--text-muted)]">
+                  Carregando documento...
+                </p>
+              ) : artigos.length === 0 ? (
+                <p className="py-10 text-center text-sm text-[var(--text-muted)]">
+                  Nenhum item estruturado encontrado neste documento.
+                </p>
+              ) : (
+                <div
+                  className="relative mx-auto w-full max-w-[72ch]"
+                  style={{ height: `${virtualizer.getTotalSize()}px` }}
+                >
+                  {virtualizer.getVirtualItems().map((virtualRow) => {
+                    const art = artigos[virtualRow.index];
+                    if (!art) return null;
+                    return (
+                      <div
+                        key={art.id}
+                        data-index={virtualRow.index}
+                        ref={virtualizer.measureElement}
+                        style={{
+                          position: 'absolute',
+                          top: 0,
+                          left: 0,
+                          width: '100%',
+                          transform: `translateY(${virtualRow.start}px)`,
+                        }}
+                        className="pb-5"
+                      >
+                        {renderCartaoArtigo(art)}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
 
-          {/* Menu Flutuante de Marca-texto (ancorado na base em telas móveis para não colidir com o menu nativo iOS/Android e manter alvos >= 44x44px) */}
+          {/* Menu Flutuante de Marca-texto (flutua acima da palavra/trecho selecionado tanto no desktop quanto no mobile) */}
           {selecaoPendente && (
             <div
-              style={
-                viewportMobile
-                  ? undefined
-                  : {
-                      left: `${selecaoPendente.x}px`,
-                      top: `${selecaoPendente.y}px`,
-                      transform: 'translate(-50%, -100%)',
-                    }
-              }
-              className={`print-hidden fixed z-50 flex flex-wrap items-center justify-center gap-1.5 rounded-2xl border border-[var(--border-hairline)] bg-[var(--bg-surface)] px-3 py-2 shadow-2xl ${
-                viewportMobile ? 'inset-x-3 bottom-3 safe-bottom' : ''
-              }`}
+              data-popover-grifo="true"
+              onPointerDown={marcarInteracaoPopover}
+              onTouchStart={marcarInteracaoPopover}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                marcarInteracaoPopover();
+              }}
+              style={{
+                left: `${selecaoPendente.x}px`,
+                top: `${selecaoPendente.y}px`,
+                transform: selecaoPendente.acima
+                  ? 'translate(-50%, -100%)'
+                  : 'translate(-50%, 0)',
+              }}
+              className="print-hidden fixed z-50 flex w-max max-w-[calc(100vw-1rem)] flex-wrap items-center justify-center gap-1 sm:gap-1.5 rounded-2xl border border-[var(--border-hairline)] bg-[var(--bg-surface)] px-2.5 sm:px-3 py-2 shadow-2xl"
               role="toolbar"
               aria-label="Menu de marca-texto e anotação"
             >
@@ -1659,16 +1914,22 @@ export const ReaderView: React.FC = () => {
                   key={cor.id}
                   type="button"
                   onClick={() => aplicarGrifoComCor(cor.id)}
-                  title={`${cor.nome} — ${cor.significado} (Tecla ${cor.atalho})`}
-                  aria-label={`Grifar em ${cor.nome} (${cor.significado})`}
+                  title={
+                    cor.significado
+                      ? `${cor.nome} — ${cor.significado}`
+                      : cor.nome
+                  }
+                  aria-label={
+                    cor.significado
+                      ? `Grifar em ${cor.nome} (${cor.significado})`
+                      : `Grifar em ${cor.nome}`
+                  }
                   style={{
                     backgroundColor: cor.hexBg,
                     borderColor: cor.hexBorder,
                   }}
-                  className="flex h-11 w-11 sm:h-9 sm:w-9 items-center justify-center rounded-full border text-xs font-bold text-slate-900 transition-transform hover:scale-105 cursor-pointer"
-                >
-                  {cor.atalho}
-                </button>
+                  className="h-8 w-8 sm:h-9 sm:w-9 rounded-full border transition-transform hover:scale-105 cursor-pointer"
+                />
               ))}
 
               <div className="mx-0.5 hidden sm:block h-5 w-px bg-[var(--border-hairline)]" />
@@ -1676,16 +1937,16 @@ export const ReaderView: React.FC = () => {
               <button
                 type="button"
                 onClick={iniciarNotaDeSelecao}
-                className="inline-flex min-h-[44px] sm:min-h-[36px] items-center gap-1.5 rounded-xl bg-[var(--accent-primary)] px-3.5 py-2 sm:py-1.5 text-xs font-medium text-white hover:opacity-90 cursor-pointer whitespace-nowrap"
+                className="inline-flex min-h-[34px] sm:min-h-[36px] items-center gap-1 rounded-xl bg-[var(--accent-primary)] px-2.5 sm:px-3.5 py-1.5 text-xs font-medium text-white hover:opacity-90 cursor-pointer whitespace-nowrap"
               >
-                <MessageSquarePlus className="h-4 w-4 sm:h-3.5 sm:w-3.5" aria-hidden="true" />
+                <MessageSquarePlus className="h-3.5 w-3.5" aria-hidden="true" />
                 Anotar
               </button>
 
               <button
                 type="button"
                 onClick={() => setSelecaoPendente(null)}
-                className="inline-flex min-h-[44px] min-w-[44px] sm:min-h-[36px] sm:min-w-[36px] items-center justify-center rounded-xl text-[var(--text-muted)] hover:bg-[var(--bg-subtle)] cursor-pointer"
+                className="inline-flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-xl text-[var(--text-muted)] hover:bg-[var(--bg-subtle)] cursor-pointer"
                 aria-label="Fechar menu"
               >
                 <X className="h-4 w-4" />
@@ -1696,18 +1957,23 @@ export const ReaderView: React.FC = () => {
           {/* Popover ao clicar em um grifo existente */}
           {grifoPopover && (
             <div
-              style={
-                viewportMobile
-                  ? undefined
-                  : {
-                      left: `${grifoPopover.x}px`,
-                      top: `${grifoPopover.y}px`,
-                      transform: 'translate(-50%, -100%)',
-                    }
-              }
-              className={`print-hidden fixed z-50 flex flex-wrap items-center justify-center gap-1.5 rounded-2xl border border-[var(--border-hairline)] bg-[var(--bg-surface)] px-3 py-2 shadow-2xl ${
-                viewportMobile ? 'inset-x-3 bottom-3 safe-bottom' : ''
-              }`}
+              data-popover-grifo="true"
+              onPointerDown={marcarInteracaoPopover}
+              onTouchStart={marcarInteracaoPopover}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                marcarInteracaoPopover();
+              }}
+              style={{
+                left: `${grifoPopover.x}px`,
+                top: `${grifoPopover.y}px`,
+                transform: grifoPopover.acima
+                  ? 'translate(-50%, -100%)'
+                  : 'translate(-50%, 0)',
+              }}
+              className="print-hidden fixed z-50 flex w-max max-w-[calc(100vw-1rem)] flex-wrap items-center justify-center gap-1 sm:gap-1.5 rounded-2xl border border-[var(--border-hairline)] bg-[var(--bg-surface)] px-2.5 sm:px-3 py-2 shadow-2xl"
+              role="toolbar"
+              aria-label="Opções do grifo"
             >
               {cores.map((cor) => (
                 <button
@@ -1717,13 +1983,17 @@ export const ReaderView: React.FC = () => {
                     await alterarCorGrifo(grifoPopover.grifo.id, cor.id);
                     setGrifoPopover(null);
                   }}
-                  title={`Trocar para ${cor.nome} (${cor.significado})`}
+                  title={
+                    cor.significado
+                      ? `Trocar para ${cor.nome} (${cor.significado})`
+                      : `Trocar para ${cor.nome}`
+                  }
                   aria-label={`Trocar para ${cor.nome}`}
                   style={{
                     backgroundColor: cor.hexBg,
                     borderColor: cor.hexBorder,
                   }}
-                  className={`h-11 w-11 sm:h-8 sm:w-8 rounded-full border cursor-pointer ${
+                  className={`h-8 w-8 rounded-full border cursor-pointer ${
                     grifoPopover.grifo.corId === cor.id ? 'ring-2 ring-[var(--accent-primary)]' : ''
                   }`}
                 />
@@ -1747,7 +2017,7 @@ export const ReaderView: React.FC = () => {
                   });
                   setGrifoPopover(null);
                 }}
-                className="min-h-[44px] sm:min-h-[34px] rounded-xl px-3 py-1.5 text-xs font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)] cursor-pointer whitespace-nowrap"
+                className="min-h-[34px] rounded-xl px-2.5 sm:px-3 py-1.5 text-xs font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)] cursor-pointer whitespace-nowrap"
               >
                 Anotar
               </button>
@@ -1760,9 +2030,18 @@ export const ReaderView: React.FC = () => {
                 }}
                 title="Remover grifo"
                 aria-label="Remover grifo"
-                className="inline-flex min-h-[44px] min-w-[44px] sm:min-h-[34px] sm:min-w-[34px] items-center justify-center rounded-xl text-red-600 hover:bg-red-50 dark:text-red-400 cursor-pointer"
+                className="inline-flex h-8 w-8 sm:h-[34px] sm:w-[34px] items-center justify-center rounded-xl text-red-600 hover:bg-red-50 dark:text-red-400 cursor-pointer"
               >
-                <Trash2 className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setGrifoPopover(null)}
+                className="inline-flex h-8 w-8 sm:h-[34px] sm:w-[34px] items-center justify-center rounded-xl text-[var(--text-muted)] hover:bg-[var(--bg-subtle)] cursor-pointer"
+                aria-label="Fechar opções do grifo"
+              >
+                <X className="h-3.5 w-3.5" />
               </button>
             </div>
           )}
@@ -1785,7 +2064,7 @@ export const ReaderView: React.FC = () => {
                 '--notas-w': `${larguraNotasTemp}px`,
               } as React.CSSProperties
             }
-            className={`print-hidden safe-bottom relative z-20 flex shrink-0 flex-col bg-[var(--bg-surface)] max-sm:fixed max-sm:inset-x-0 max-sm:bottom-0 max-sm:top-auto max-sm:h-[74dvh] max-sm:w-full max-sm:rounded-t-2xl max-sm:border-t max-sm:border-[var(--border-hairline)] max-sm:shadow-2xl sm:max-lg:fixed sm:max-lg:inset-y-14 sm:max-lg:right-0 sm:max-lg:w-96 sm:max-lg:border-l sm:max-lg:border-[var(--border-hairline)] sm:max-lg:shadow-2xl lg:w-[var(--notas-w)] lg:border-l lg:border-[var(--border-hairline)] ${
+            className={`print-hidden safe-bottom relative z-20 flex shrink-0 flex-col bg-[var(--bg-surface)] max-sm:fixed max-sm:inset-x-0 max-sm:bottom-0 max-sm:top-auto max-sm:h-[74dvh] max-sm:w-full max-sm:rounded-t-2xl max-sm:border-t max-sm:border-[var(--border-hairline)] max-sm:shadow-2xl sm:max-lg:fixed sm:max-lg:top-14 sm:max-lg:bottom-0 sm:max-lg:right-0 sm:max-lg:w-96 sm:max-lg:border-l sm:max-lg:border-[var(--border-hairline)] sm:max-lg:shadow-2xl lg:w-[var(--notas-w)] lg:border-l lg:border-[var(--border-hairline)] ${
               redimensionandoNotas ? '' : 'transition-[width] duration-200 ease-out'
             }`}
           >
