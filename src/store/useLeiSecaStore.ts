@@ -244,8 +244,8 @@ export const useLeiSecaStore = create<LeiSecaState>((set, get) => ({
   codigoAtivoId: null,
   artigoAtivoId: null,
   buscaGlobalAberta: false,
-  sidebarLeitorAberta: true,
-  painelNotasAberto: true,
+  sidebarLeitorAberta: false,
+  painelNotasAberto: false,
   modoMemorizacao: false,
   configuracao: CONFIGURACAO_PADRAO,
   undoStack: [],
@@ -272,13 +272,19 @@ export const useLeiSecaStore = create<LeiSecaState>((set, get) => ({
       window.addEventListener('resize', sincronizarFonteDispositivo, { passive: true });
       window.addEventListener('focus', sincronizarFonteDispositivo, { passive: true });
     }
+    const ehTelaCompacta =
+      typeof window !== 'undefined' && window.innerWidth < 1024;
     set({
       inicializado: true,
       configuracao: cfg,
       codigoAtivoId: cfg.ultimoCodigoId || null,
       artigoAtivoId: cfg.ultimoArtigoId || null,
-      sidebarLeitorAberta: cfg.preferencias.sidebarLeitorAberta ?? true,
-      painelNotasAberto: cfg.preferencias.painelNotasAberto ?? true,
+      sidebarLeitorAberta: ehTelaCompacta
+        ? false
+        : (cfg.preferencias.sidebarLeitorAberta ?? false),
+      painelNotasAberto: ehTelaCompacta
+        ? false
+        : (cfg.preferencias.painelNotasAberto ?? false),
     });
     // Migração automática e não destrutiva para códigos importados antes da correção de hifenização
     void get().reprocessarCodigosLegados();
@@ -405,14 +411,13 @@ export const useLeiSecaStore = create<LeiSecaState>((set, get) => ({
     const ativo = !!get().configuracao.preferencias.modoFocoTotal;
     const novo = !ativo;
     set({
-      sidebarLeitorAberta: novo ? false : true,
-      painelNotasAberto: novo ? false : true,
+      sidebarLeitorAberta: false,
+      painelNotasAberto: false,
     });
     await get().atualizarPreferencias({
       modoFocoTotal: novo,
-      sidebarPrincipalRecolhida: novo,
-      sidebarLeitorAberta: !novo,
-      painelNotasAberto: !novo,
+      sidebarLeitorAberta: false,
+      painelNotasAberto: false,
     });
   },
 

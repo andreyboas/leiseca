@@ -286,6 +286,42 @@ export const ReaderView: React.FC = () => {
   const [novaColecaoNome, setNovaColecaoNome] = useState('');
   const [artigoEmEdicao, setArtigoEmEdicao] = useState<Artigo | null>(null);
   const [revelarTudoCloze, setRevelarTudoCloze] = useState(false);
+  const [temTecladoDesktop, setTemTecladoDesktop] = useState<boolean>(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+      return false;
+    }
+    return (
+      window.matchMedia('(hover: hover) and (pointer: fine)').matches &&
+      window.matchMedia('(min-width: 768px)').matches
+    );
+  });
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+      return;
+    }
+    const mqPointer = window.matchMedia('(hover: hover) and (pointer: fine)');
+    const mqWidth = window.matchMedia('(min-width: 768px)');
+    const mqCompacta = window.matchMedia('(max-width: 1023px)');
+    const atualizar = () => {
+      setTemTecladoDesktop(mqPointer.matches && mqWidth.matches);
+    };
+    const aoEntrarCompacto = (ev: MediaQueryListEvent) => {
+      if (ev.matches) {
+        setSidebarLeitorAberta(false);
+        setPainelNotasAberto(false);
+      }
+    };
+    atualizar();
+    mqPointer.addEventListener?.('change', atualizar);
+    mqWidth.addEventListener?.('change', atualizar);
+    mqCompacta.addEventListener?.('change', aoEntrarCompacto);
+    return () => {
+      mqPointer.removeEventListener?.('change', atualizar);
+      mqWidth.removeEventListener?.('change', atualizar);
+      mqCompacta.removeEventListener?.('change', aoEntrarCompacto);
+    };
+  }, [setSidebarLeitorAberta, setPainelNotasAberto]);
 
   const [selecaoPendente, setSelecaoPendente] = useState<SelecaoPendente | null>(null);
   const [grifoPopover, setGrifoPopover] = useState<GrifoAtivoPopover | null>(null);
@@ -1585,38 +1621,58 @@ export const ReaderView: React.FC = () => {
           </div>
         </>
       ) : (
-        /* Barra mínima do Modo Foco Total */
-        <div className="print-hidden safe-top flex items-center justify-between border-b border-[var(--border-hairline)] bg-[var(--bg-surface)]/80 px-4 py-2 text-xs">
-          <span className="font-medium text-[var(--text-secondary)] truncate">
-            {codigoAtivo.sigla} · {artigoAtivo ? formatarRotuloUnidade(artigoAtivo) : ''}
-          </span>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              disabled={indiceAtivo <= 0}
-              onClick={() => navegarParaIndice(indiceAtivo - 1)}
-              className="rounded border border-[var(--border-hairline)] px-2 py-1 text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)] disabled:opacity-40 cursor-pointer"
-            >
-              Anterior
-            </button>
-            <button
-              type="button"
-              disabled={indiceAtivo >= artigos.length - 1}
-              onClick={() => navegarParaIndice(indiceAtivo + 1)}
-              className="rounded border border-[var(--border-hairline)] px-2 py-1 text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)] disabled:opacity-40 cursor-pointer"
-            >
-              Próximo
-            </button>
-            <button
-              type="button"
-              onClick={() => void alternarModoFocoTotal()}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--accent-primary)] px-3 py-1 font-medium text-white hover:opacity-90 cursor-pointer"
-            >
-              <Minimize2 className="h-3.5 w-3.5" aria-hidden="true" />
-              Sair do foco (Esc)
-            </button>
+        /* Barra mínima do Modo Foco Total — responsiva e alinhada para mobile, tablet e desktop */
+        <header className="print-hidden shrink-0 border-b border-[var(--border-hairline)] bg-[var(--bg-surface)]/95 backdrop-blur-xs pt-[max(0.5rem,env(safe-area-inset-top,0px))] pb-2 px-3 sm:px-6">
+          <div className="mx-auto flex min-h-[2.5rem] w-full max-w-5xl items-center justify-between gap-2 sm:gap-4">
+            <span className="flex-1 min-w-0 truncate text-xs sm:text-sm font-semibold text-[var(--text-primary)]">
+              {codigoAtivo.sigla}
+              {artigoAtivo ? ` · ${formatarRotuloUnidade(artigoAtivo, { curto: true })}` : ''}
+            </span>
+
+            <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+              <button
+                type="button"
+                disabled={indiceAtivo <= 0}
+                onClick={() => navegarParaIndice(indiceAtivo - 1)}
+                aria-label="Artigo anterior"
+                title="Anterior"
+                className="inline-flex h-9 w-9 sm:h-8 sm:w-auto sm:px-2.5 shrink-0 items-center justify-center gap-1 rounded-lg border border-[var(--border-hairline)] bg-[var(--bg-canvas)] text-xs font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)] disabled:opacity-40 cursor-pointer whitespace-nowrap"
+              >
+                <ArrowLeft className="h-4 w-4 sm:h-3.5 sm:w-3.5 shrink-0" aria-hidden="true" />
+                <span className="hidden sm:inline">Anterior</span>
+              </button>
+
+              <span className="shrink-0 px-1 font-mono-tabular text-[11px] sm:text-xs text-[var(--text-muted)] whitespace-nowrap">
+                {indiceAtivo + 1}/{artigos.length}
+              </span>
+
+              <button
+                type="button"
+                disabled={indiceAtivo >= artigos.length - 1}
+                onClick={() => navegarParaIndice(indiceAtivo + 1)}
+                aria-label="Próximo artigo"
+                title="Próximo"
+                className="inline-flex h-9 w-9 sm:h-8 sm:w-auto sm:px-2.5 shrink-0 items-center justify-center gap-1 rounded-lg border border-[var(--border-hairline)] bg-[var(--bg-canvas)] text-xs font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)] disabled:opacity-40 cursor-pointer whitespace-nowrap"
+              >
+                <span className="hidden sm:inline">Próximo</span>
+                <ArrowRight className="h-4 w-4 sm:h-3.5 sm:w-3.5 shrink-0" aria-hidden="true" />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => void alternarModoFocoTotal()}
+                aria-label="Sair do modo foco"
+                className="inline-flex h-9 sm:h-8 shrink-0 items-center justify-center gap-1.5 rounded-lg bg-[var(--accent-primary)] px-3 text-xs font-medium text-white hover:opacity-90 cursor-pointer whitespace-nowrap"
+              >
+                <Minimize2 className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                <span className="sm:hidden">Sair</span>
+                <span className="hidden sm:inline">
+                  Sair do foco{temTecladoDesktop ? ' (Esc)' : ''}
+                </span>
+              </button>
+            </div>
           </div>
-        </div>
+        </header>
       )}
 
       {/* Área Principal 3 Colunas */}
