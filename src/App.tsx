@@ -16,6 +16,7 @@ import {
   X,
 } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
+import { TelaCarregando } from '@/src/components/BookLoader';
 import { AuthGateView } from '@/src/components/AuthGateView';
 import { BrandLogo } from '@/src/components/BrandLogo';
 import { useAuth } from '@/src/contexts/AuthContext';
